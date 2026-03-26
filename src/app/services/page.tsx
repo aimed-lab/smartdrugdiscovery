@@ -316,6 +316,7 @@ export default function ServicesPage() {
         <TabsList>
           <TabsTrigger value="agents">AI Agents</TabsTrigger>
           <TabsTrigger value="experts">Human Experts</TabsTrigger>
+          <TabsTrigger value="create">Create Agent</TabsTrigger>
         </TabsList>
 
         {/* AI Agents Tab */}
@@ -505,7 +506,283 @@ export default function ServicesPage() {
             ))}
           </div>
         </TabsContent>
+        {/* Create Agent Tab */}
+        <TabsContent value="create">
+          <CreateAgentSection />
+        </TabsContent>
       </Tabs>
+    </div>
+  );
+}
+
+function CreateAgentSection() {
+  const [agentType, setAgentType] = useState<"local" | "remote">("local");
+  const [formData, setFormData] = useState({
+    name: "",
+    description: "",
+    endpoint: "",
+    authToken: "",
+    computeType: "cpu",
+    timeout: "300",
+    operatesOn: [] as string[],
+    modelLevel: "A1",
+  });
+
+  const inputClass =
+    "w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring";
+
+  return (
+    <div className="max-w-2xl space-y-6">
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg">Create Custom Agent</CardTitle>
+          <CardDescription>
+            Deploy AI agents locally or connect to remote endpoints to process
+            your projects and digital assets
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          {/* Execution Mode */}
+          <div>
+            <label className="text-sm font-medium mb-2 block">
+              Execution Mode
+            </label>
+            <div className="flex gap-2">
+              {(["local", "remote"] as const).map((mode) => (
+                <button
+                  key={mode}
+                  onClick={() => setAgentType(mode)}
+                  className={cn(
+                    "flex-1 rounded-md border px-4 py-3 text-sm font-medium transition-colors",
+                    agentType === mode
+                      ? "border-primary bg-primary/5 text-primary"
+                      : "border-input hover:bg-accent"
+                  )}
+                >
+                  <div className="font-medium capitalize">{mode}</div>
+                  <div className="text-xs text-muted-foreground mt-1">
+                    {mode === "local"
+                      ? "Run on your machine using local compute"
+                      : "Send requests to a remote endpoint and receive results"}
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Agent Name */}
+          <div>
+            <label className="text-sm font-medium" htmlFor="agent-name">
+              Agent Name
+            </label>
+            <input
+              id="agent-name"
+              type="text"
+              value={formData.name}
+              onChange={(e) =>
+                setFormData({ ...formData, name: e.target.value })
+              }
+              placeholder="e.g., Custom ADMET Predictor"
+              className={cn(inputClass, "mt-1")}
+            />
+          </div>
+
+          {/* Description */}
+          <div>
+            <label className="text-sm font-medium" htmlFor="agent-desc">
+              Description
+            </label>
+            <textarea
+              id="agent-desc"
+              value={formData.description}
+              onChange={(e) =>
+                setFormData({ ...formData, description: e.target.value })
+              }
+              placeholder="What does this agent do?"
+              rows={2}
+              className={cn(inputClass, "mt-1 resize-none")}
+            />
+          </div>
+
+          {/* Remote-specific fields */}
+          {agentType === "remote" && (
+            <>
+              <div>
+                <label className="text-sm font-medium" htmlFor="endpoint">
+                  Endpoint URL
+                </label>
+                <input
+                  id="endpoint"
+                  type="url"
+                  value={formData.endpoint}
+                  onChange={(e) =>
+                    setFormData({ ...formData, endpoint: e.target.value })
+                  }
+                  placeholder="https://api.example.com/agent"
+                  className={cn(inputClass, "mt-1")}
+                />
+              </div>
+              <div>
+                <label className="text-sm font-medium" htmlFor="auth-token">
+                  Auth Token
+                </label>
+                <input
+                  id="auth-token"
+                  type="password"
+                  value={formData.authToken}
+                  onChange={(e) =>
+                    setFormData({ ...formData, authToken: e.target.value })
+                  }
+                  placeholder="Bearer token or API key"
+                  className={cn(inputClass, "mt-1")}
+                />
+              </div>
+            </>
+          )}
+
+          {/* Compute Type */}
+          <div>
+            <label className="text-sm font-medium" htmlFor="compute-type">
+              Compute Type
+            </label>
+            <select
+              id="compute-type"
+              value={formData.computeType}
+              onChange={(e) =>
+                setFormData({ ...formData, computeType: e.target.value })
+              }
+              className={cn(inputClass, "mt-1")}
+            >
+              <option value="cpu">CPU</option>
+              <option value="gpu">GPU (CUDA)</option>
+              <option value="tpu">TPU</option>
+              <option value="auto">Auto-detect</option>
+            </select>
+          </div>
+
+          {/* Timeout */}
+          <div>
+            <label className="text-sm font-medium" htmlFor="timeout">
+              Timeout (seconds)
+            </label>
+            <input
+              id="timeout"
+              type="number"
+              value={formData.timeout}
+              onChange={(e) =>
+                setFormData({ ...formData, timeout: e.target.value })
+              }
+              className={cn(inputClass, "mt-1")}
+            />
+          </div>
+
+          {/* Model Level */}
+          <div>
+            <label className="text-sm font-medium" htmlFor="model-level">
+              AIDD 2.0 Model Level
+            </label>
+            <select
+              id="model-level"
+              value={formData.modelLevel}
+              onChange={(e) =>
+                setFormData({ ...formData, modelLevel: e.target.value })
+              }
+              className={cn(inputClass, "mt-1")}
+            >
+              <option value="A1">A1 — Gene/Protein Target</option>
+              <option value="A2">A2 — Pathway & Gene Signature</option>
+              <option value="A3">A3 — Network for Target</option>
+              <option value="A4">A4 — Whole Cell</option>
+              <option value="A5">A5 — Whole Tissue</option>
+              <option value="A6">A6 — Whole Organ</option>
+              <option value="A7">A7 — Human Patient</option>
+              <option value="A8">A8 — Patient Cohort</option>
+              <option value="A9">A9 — Disease Population</option>
+              <option value="A10">A10 — Whole Population</option>
+            </select>
+          </div>
+
+          {/* Operates On */}
+          <div>
+            <label className="text-sm font-medium block mb-2">
+              Operates On
+            </label>
+            <div className="flex flex-wrap gap-2">
+              {["compounds", "targets", "experiments", "projects"].map(
+                (entity) => (
+                  <button
+                    key={entity}
+                    onClick={() => {
+                      const ops = formData.operatesOn.includes(entity)
+                        ? formData.operatesOn.filter((o) => o !== entity)
+                        : [...formData.operatesOn, entity];
+                      setFormData({ ...formData, operatesOn: ops });
+                    }}
+                    className={cn(
+                      "rounded-full px-3 py-1 text-xs font-medium capitalize transition-colors",
+                      formData.operatesOn.includes(entity)
+                        ? entityChipColors[entity]
+                        : "bg-muted text-muted-foreground"
+                    )}
+                  >
+                    {entity}
+                  </button>
+                )
+              )}
+            </div>
+          </div>
+
+          {/* Submit */}
+          <button className="w-full rounded-md px-4 py-2.5 text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90">
+            {agentType === "local" ? "Create Local Agent" : "Connect Remote Agent"}
+          </button>
+        </CardContent>
+      </Card>
+
+      {/* Active Custom Agents */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg">Your Custom Agents</CardTitle>
+          <CardDescription>
+            Agents you have created or connected
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-3">
+            {[
+              { name: "Local ADMET Screener", type: "local", status: "idle", level: "A4" },
+              { name: "Remote Docking Service", type: "remote", status: "running", level: "A1" },
+            ].map((agent) => (
+              <div
+                key={agent.name}
+                className="flex items-center justify-between rounded-md border p-3"
+              >
+                <div>
+                  <p className="text-sm font-medium">{agent.name}</p>
+                  <div className="flex items-center gap-2 mt-1">
+                    <span className="rounded-full bg-muted px-2 py-0.5 text-xs capitalize">
+                      {agent.type}
+                    </span>
+                    <span className="rounded bg-muted px-1.5 py-0.5 text-xs font-mono">
+                      {agent.level}
+                    </span>
+                  </div>
+                </div>
+                <span
+                  className={cn(
+                    "rounded-full px-2.5 py-0.5 text-xs font-medium capitalize",
+                    agent.status === "running"
+                      ? "bg-blue-100 text-blue-800"
+                      : "bg-gray-100 text-gray-800"
+                  )}
+                >
+                  {agent.status}
+                </span>
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }
