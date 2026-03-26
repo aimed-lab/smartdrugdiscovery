@@ -41,6 +41,8 @@ function Sidebar() {
       <NavItem href="/targets" label="Targets" />
       <NavItem href="/experiments" label="Experiments" />
       <NavItem href="/search" label="Search ChEMBL" />
+      <NavItem href="/analysis" label="Analysis with AI" />
+      <NavItem href="/services" label="Services" />
       <div className="mt-auto pt-4 border-t">
         <NavItem href="/settings" label="Settings" />
       </div>
