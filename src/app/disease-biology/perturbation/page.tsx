@@ -37,8 +37,8 @@ const statusConfig: Record<string, { badge: string; pulse?: boolean }> = {
 export default function PerturbationPage() {
   const [selectedEngine, setSelectedEngine] = useState<string>("PETS Engine");
   const [newTarget, setNewTarget] = useState("");
-  const [newPerturbation, setNewPerturbation] = useState(perturbationTypes[0]);
-  const [newModel, setNewModel] = useState(modelOptions[0]);
+  const [newPerturbation, setNewPerturbation] = useState<string>(perturbationTypes[0]);
+  const [newModel, setNewModel] = useState<string>(modelOptions[0]);
   const [newCellType, setNewCellType] = useState("");
 
   return (
