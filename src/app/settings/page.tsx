@@ -1,18 +1,32 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
+import { useAuth } from "@/lib/auth-context";
 
 export default function SettingsPage() {
+  const { user, updateUser } = useAuth();
+
   const [profile, setProfile] = useState({
-    name: "Dr. Sarah Chen",
-    email: "sarah.chen@pharmatech.com",
-    role: "Principal Scientist",
-    org: "PharmaTech Research Inc.",
+    name: "",
+    email: "",
+    role: "",
+    org: "",
   });
+
+  useEffect(() => {
+    if (user) {
+      setProfile({
+        name: user.name,
+        email: user.email,
+        role: user.title || user.role,
+        org: user.institution,
+      });
+    }
+  }, [user]);
 
   const [keyVisibility, setKeyVisibility] = useState<Record<string, boolean>>({
     chembl: false,
@@ -118,7 +132,7 @@ export default function SettingsPage() {
             <CardContent className="space-y-6">
               <div className="flex items-center gap-6">
                 <div className="h-20 w-20 rounded-full bg-primary flex items-center justify-center text-primary-foreground text-2xl font-bold">
-                  SC
+                  {user?.avatar || "??"}
                 </div>
                 <div>
                   <p className="text-lg font-semibold">{profile.name}</p>
@@ -176,7 +190,18 @@ export default function SettingsPage() {
               </div>
 
               <div className="flex justify-end">
-                <button className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90">
+                <button
+                  onClick={() => {
+                    updateUser({
+                      name: profile.name,
+                      email: profile.email,
+                      title: profile.role,
+                      institution: profile.org,
+                      avatar: profile.name.split(" ").filter(Boolean).map(w => w[0]).join("").slice(0, 2).toUpperCase(),
+                    });
+                  }}
+                  className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+                >
                   Save Profile
                 </button>
               </div>
