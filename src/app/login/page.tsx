@@ -26,7 +26,7 @@ export default function LoginPage() {
             <span className="text-primary-foreground text-2xl font-bold">SD</span>
           </div>
           <h1 className="text-3xl font-bold">SmartDrugDiscovery</h1>
-          <p className="text-muted-foreground mt-1">AI Drug Discovery 2.0 Platform</p>
+          <p className="text-muted-foreground mt-1 text-sm uppercase tracking-widest">faster · cheaper · personalized</p>
         </div>
 
         <Card>
