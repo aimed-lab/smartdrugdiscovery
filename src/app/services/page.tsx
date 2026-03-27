@@ -307,7 +307,7 @@ export default function ServicesPage() {
 
   return (
     <div className="p-8 space-y-6">
-      <h1 className="text-3xl font-bold">Services</h1>
+      <h1 className="text-3xl font-bold">Add-on Service</h1>
       <p className="text-muted-foreground mt-1">
         Deploy AI agents or consult human experts on your projects and assets
       </p>

@@ -38,20 +38,20 @@ function Sidebar({ user, onLogout }: { user: { name: string; orcid: string } | n
 
       <NavItem href="/" label="Dashboard" />
       <NavItem href="/projects" label="Projects" />
-      <NavItem href="/compounds" label="Compounds" />
+      <NavItem href="/disease" label="Disease" />
       <NavItem href="/targets" label="Targets" />
-      <NavItem href="/experiments" label="Experiments" />
+      <NavItem href="/drug" label="Drug" />
       <NavItem href="/models" label="Models" />
-      <NavItem href="/search" label="Search ChEMBL" />
-      <NavItem href="/analysis" label="Analysis with AI" />
-      <NavItem href="/services" label="Services" />
-      <NavItem href="/plugins" label="Plugins" />
+      <NavItem href="/business" label="Business" />
+      <NavItem href="/design" label="Design with AI" />
+      <NavItem href="/services" label="Add-on Service" />
+      <NavItem href="/plugins" label="Tool Plugins" />
 
       <div className="mt-auto pt-4 border-t space-y-1">
         {user && (
           <div className="px-3 py-2 mb-1">
             <p className="text-sm font-medium truncate">{user.name}</p>
-            <p className="text-xs text-muted-foreground truncate">ORCID: {user.orcid}</p>
+            <p className="text-xs text-muted-foreground truncate">{user.email}</p>
           </div>
         )}
         <NavItem href="/settings" label="Settings" />

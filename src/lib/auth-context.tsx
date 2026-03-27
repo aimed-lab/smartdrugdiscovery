@@ -4,70 +4,86 @@ import { createContext, useContext, useState, ReactNode, useEffect } from "react
 
 interface User {
   name: string;
-  orcid: string;
-  institution: string;
   email: string;
+  institution: string;
   avatar: string;
 }
 
 interface AuthContextType {
   isAuthenticated: boolean;
   user: User | null;
-  login: (inviteCode: string) => boolean;
-  loginWithOrcid: () => void;
+  login: (email: string, inviteCode: string) => string | null;
   logout: () => void;
-  inviteVerified: boolean;
 }
 
 const VALID_INVITE_CODES = ["SPARC2026"];
 
-const MOCK_ORCID_USER: User = {
-  name: "Dr. Sarah Chen",
-  orcid: "0000-0002-1234-5678",
-  institution: "PharmaTech Research Inc.",
-  email: "sarah.chen@pharmatech.com",
-  avatar: "SC",
-};
+function getInitials(email: string): string {
+  const name = email.split("@")[0].replace(/[._-]/g, " ");
+  const parts = name.split(" ").filter(Boolean);
+  if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
+  return name.slice(0, 2).toUpperCase();
+}
+
+function getDisplayName(email: string): string {
+  const name = email.split("@")[0].replace(/[._-]/g, " ");
+  return name
+    .split(" ")
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(" ");
+}
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [inviteVerified, setInviteVerified] = useState(false);
   const [user, setUser] = useState<User | null>(null);
 
   useEffect(() => {
-    const stored = localStorage.getItem("sdd-auth");
-    if (stored === "true") {
-      setIsAuthenticated(true);
-      setInviteVerified(true);
-      setUser(MOCK_ORCID_USER);
+    const stored = localStorage.getItem("sdd-auth-user");
+    if (stored) {
+      try {
+        setUser(JSON.parse(stored));
+        setIsAuthenticated(true);
+      } catch {
+        localStorage.removeItem("sdd-auth-user");
+      }
     }
   }, []);
 
-  const login = (inviteCode: string): boolean => {
-    if (VALID_INVITE_CODES.includes(inviteCode.trim().toUpperCase())) {
-      setInviteVerified(true);
-      return true;
-    }
-    return false;
-  };
+  const login = (email: string, inviteCode: string): string | null => {
+    const trimmedEmail = email.trim().toLowerCase();
+    const trimmedCode = inviteCode.trim().toUpperCase();
 
-  const loginWithOrcid = () => {
-    setUser(MOCK_ORCID_USER);
+    if (!trimmedEmail || !trimmedEmail.includes("@")) {
+      return "Please enter a valid email address.";
+    }
+    if (!VALID_INVITE_CODES.includes(trimmedCode)) {
+      return "Invalid invite code. Please check and try again.";
+    }
+
+    const domain = trimmedEmail.split("@")[1];
+    const newUser: User = {
+      name: getDisplayName(trimmedEmail),
+      email: trimmedEmail,
+      institution: domain,
+      avatar: getInitials(trimmedEmail),
+    };
+
+    setUser(newUser);
     setIsAuthenticated(true);
-    localStorage.setItem("sdd-auth", "true");
+    localStorage.setItem("sdd-auth-user", JSON.stringify(newUser));
+    return null;
   };
 
   const logout = () => {
     setUser(null);
     setIsAuthenticated(false);
-    setInviteVerified(false);
-    localStorage.removeItem("sdd-auth");
+    localStorage.removeItem("sdd-auth-user");
   };
 
   return (
-    <AuthContext.Provider value={{ isAuthenticated, user, login, loginWithOrcid, logout, inviteVerified }}>
+    <AuthContext.Provider value={{ isAuthenticated, user, login, logout }}>
       {children}
     </AuthContext.Provider>
   );
