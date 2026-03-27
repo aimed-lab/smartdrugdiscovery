@@ -2,11 +2,13 @@
 
 import { createContext, useContext, useState, ReactNode, useEffect } from "react";
 
-interface User {
+export interface User {
   name: string;
   email: string;
+  title: string;
   institution: string;
   avatar: string;
+  role: string;
 }
 
 interface AuthContextType {
@@ -15,23 +17,67 @@ interface AuthContextType {
   user: User | null;
   login: (email: string, inviteCode: string) => string | null;
   logout: () => void;
+  updateUser: (updates: Partial<User>) => void;
 }
 
 const VALID_INVITE_CODES = ["SPARC2026"];
 
-function getInitials(email: string): string {
-  const name = email.split("@")[0].replace(/[._-]/g, " ");
-  const parts = name.split(" ").filter(Boolean);
-  if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
-  return name.slice(0, 2).toUpperCase();
+// Persistent user database — keyed by email
+const USER_DB_KEY = "sdd-user-db";
+const AUTH_KEY = "sdd-auth-user";
+
+// Seed database with known users
+const SEED_USERS: Record<string, User> = {
+  "jakechen@gmail.com": {
+    name: "Dr. Jake Chen",
+    email: "jakechen@gmail.com",
+    title: "Professor and Director",
+    institution: "UAB Systems Pharmacology AI Research Center",
+    avatar: "JC",
+    role: "Admin",
+  },
+};
+
+function getUserDB(): Record<string, User> {
+  try {
+    const stored = localStorage.getItem(USER_DB_KEY);
+    if (stored) return { ...SEED_USERS, ...JSON.parse(stored) };
+  } catch { /* ignore */ }
+  return { ...SEED_USERS };
 }
 
-function getDisplayName(email: string): string {
-  const name = email.split("@")[0].replace(/[._-]/g, " ");
-  return name
+function saveUserToDB(user: User) {
+  const db = getUserDB();
+  db[user.email] = user;
+  localStorage.setItem(USER_DB_KEY, JSON.stringify(db));
+}
+
+function lookupOrCreateUser(email: string): User {
+  const db = getUserDB();
+  if (db[email]) return db[email];
+
+  // Create new user from email
+  const namePart = email.split("@")[0].replace(/[._-]/g, " ");
+  const name = namePart
     .split(" ")
     .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
     .join(" ");
+  const parts = namePart.split(" ").filter(Boolean);
+  const avatar =
+    parts.length >= 2
+      ? (parts[0][0] + parts[1][0]).toUpperCase()
+      : namePart.slice(0, 2).toUpperCase();
+
+  const newUser: User = {
+    name,
+    email,
+    title: "",
+    institution: email.split("@")[1],
+    avatar,
+    role: "User",
+  };
+  saveUserToDB(newUser);
+  return newUser;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -42,14 +88,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
 
   useEffect(() => {
-    const stored = localStorage.getItem("sdd-auth-user");
-    if (stored) {
-      try {
-        setUser(JSON.parse(stored));
-        setIsAuthenticated(true);
-      } catch {
-        localStorage.removeItem("sdd-auth-user");
-      }
+    const storedEmail = localStorage.getItem(AUTH_KEY);
+    if (storedEmail) {
+      const u = lookupOrCreateUser(storedEmail);
+      setUser(u);
+      setIsAuthenticated(true);
     }
     setLoading(false);
   }, []);
@@ -65,28 +108,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return "Invalid invite code. Please check and try again.";
     }
 
-    const domain = trimmedEmail.split("@")[1];
-    const newUser: User = {
-      name: getDisplayName(trimmedEmail),
-      email: trimmedEmail,
-      institution: domain,
-      avatar: getInitials(trimmedEmail),
-    };
-
-    setUser(newUser);
+    const u = lookupOrCreateUser(trimmedEmail);
+    setUser(u);
     setIsAuthenticated(true);
-    localStorage.setItem("sdd-auth-user", JSON.stringify(newUser));
+    localStorage.setItem(AUTH_KEY, trimmedEmail);
     return null;
+  };
+
+  const updateUser = (updates: Partial<User>) => {
+    if (!user) return;
+    const updated = { ...user, ...updates };
+    setUser(updated);
+    saveUserToDB(updated);
   };
 
   const logout = () => {
     setUser(null);
     setIsAuthenticated(false);
-    localStorage.removeItem("sdd-auth-user");
+    localStorage.removeItem(AUTH_KEY);
   };
 
   return (
-    <AuthContext.Provider value={{ isAuthenticated, loading, user, login, logout }}>
+    <AuthContext.Provider value={{ isAuthenticated, loading, user, login, logout, updateUser }}>
       {children}
     </AuthContext.Provider>
   );

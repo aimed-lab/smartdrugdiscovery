@@ -76,7 +76,7 @@ const navGroups: NavGroup[] = [
   },
 ];
 
-function Sidebar({ user, onLogout }: { user: { name: string; email: string; avatar: string } | null; onLogout: () => void }) {
+function Sidebar({ user, onLogout }: { user: { name: string; email: string; avatar: string; title?: string } | null; onLogout: () => void }) {
   const [expanded, setExpanded] = useState<Record<string, boolean>>({
     "Disease Biology": true,
     "Pharmacology": false,
@@ -189,7 +189,7 @@ function Sidebar({ user, onLogout }: { user: { name: string; email: string; avat
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium truncate">{user.name}</p>
-              <p className="text-[11px] text-muted-foreground truncate">{user.email}</p>
+              <p className="text-[11px] text-muted-foreground truncate">{user.title || user.email}</p>
             </div>
             <button
               onClick={onLogout}
