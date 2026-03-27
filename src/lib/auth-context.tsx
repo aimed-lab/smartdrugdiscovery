@@ -11,6 +11,7 @@ interface User {
 
 interface AuthContextType {
   isAuthenticated: boolean;
+  loading: boolean;
   user: User | null;
   login: (email: string, inviteCode: string) => string | null;
   logout: () => void;
@@ -37,6 +38,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [user, setUser] = useState<User | null>(null);
 
   useEffect(() => {
@@ -49,6 +51,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         localStorage.removeItem("sdd-auth-user");
       }
     }
+    setLoading(false);
   }, []);
 
   const login = (email: string, inviteCode: string): string | null => {
@@ -83,7 +86,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ isAuthenticated, user, login, logout }}>
+    <AuthContext.Provider value={{ isAuthenticated, loading, user, login, logout }}>
       {children}
     </AuthContext.Provider>
   );

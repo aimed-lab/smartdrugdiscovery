@@ -14,7 +14,11 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
 }
 
 function AuthSwitch({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated, user, logout } = useAuth();
+  const { isAuthenticated, loading, user, logout } = useAuth();
+
+  if (loading) {
+    return <div className="flex h-screen items-center justify-center" />;
+  }
 
   if (!isAuthenticated) {
     return <LoginPage />;
