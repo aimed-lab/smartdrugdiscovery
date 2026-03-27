@@ -98,9 +98,9 @@ const positionColors: Record<OurPosition, string> = {
 };
 
 const threatColors: Record<ThreatLevel, string> = {
-  High: "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400",
-  Medium: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400",
-  Low: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400",
+  High: "bg-red-600 text-white",
+  Medium: "bg-yellow-500 text-white",
+  Low: "bg-green-600 text-white",
 };
 
 export default function BusinessOptimizationPage() {
