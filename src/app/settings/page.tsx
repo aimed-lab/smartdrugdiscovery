@@ -11,7 +11,19 @@ import { RoleAvatar } from "@/components/role-avatar";
 import { ROLE_META } from "@/lib/roles";
 
 export default function SettingsPage() {
-  const { user, updateUser } = useAuth();
+  const { user, updateUser, initiateOwnerTransfer, cancelOwnerTransfer } = useAuth();
+
+  // Ownership transfer state
+  const [transferEmail, setTransferEmail] = useState("");
+  const [transferConfirmOpen, setTransferConfirmOpen] = useState(false);
+
+  function getTransferHoursLeft(): number {
+    if (!user?.pendingOwnerTransfer) return 0;
+    const initiated = new Date(user.pendingOwnerTransfer.initiatedAt).getTime();
+    const elapsed   = (Date.now() - initiated) / 1000 / 3600;
+    return Math.max(0, 24 - elapsed);
+  }
+  const hoursLeft = getTransferHoursLeft();
 
   const [profile, setProfile] = useState({
     name: "",
@@ -491,21 +503,119 @@ export default function SettingsPage() {
                 <div>
                   <label className="text-sm font-medium">Platform Access Role</label>
                   <p className="text-xs text-muted-foreground mt-0.5">
-                    Your role controls which features and settings are visible. Contact an Admin to change your organization role.
+                    Your role controls which features and settings are visible.
                   </p>
                 </div>
-                <select
-                  value={user?.role ?? "User"}
-                  onChange={(e) => updateUser({ role: e.target.value as import("@/lib/roles").AppRole })}
-                  className={inputClass}
-                >
-                  <option value="Owner">Owner — Full control: org settings, billing, transfer</option>
-                  <option value="Admin">Admin — Manage users, roles, plugins, and models</option>
-                  <option value="Developer">Developer — Install and configure MCP servers, view API keys</option>
-                  <option value="User">User — Browse, install free plugins, add personal API keys</option>
-                </select>
-                <p className="text-xs text-muted-foreground italic">Role changes take effect immediately across all pages.</p>
+
+                {user?.role === "Owner" ? (
+                  /* Owner role is locked — cannot self-demote */
+                  <div className="rounded-lg border border-orange-200 dark:border-orange-800 bg-orange-50/50 dark:bg-orange-950/20 p-3 space-y-1.5">
+                    <div className="flex items-center gap-2">
+                      <span className="h-2 w-2 rounded-full bg-orange-500 shrink-0" />
+                      <span className="text-sm font-medium text-orange-800 dark:text-orange-300">Owner</span>
+                      <span className="text-xs text-orange-600 dark:text-orange-400 ml-auto">🔒 Locked</span>
+                    </div>
+                    <p className="text-xs text-muted-foreground leading-relaxed">
+                      Owners cannot downgrade their own role. To change roles, first transfer ownership to another member — a <strong>24-hour cooling-off period</strong> applies before the transfer completes.
+                    </p>
+                  </div>
+                ) : (
+                  <select
+                    value={user?.role ?? "User"}
+                    onChange={(e) => updateUser({ role: e.target.value as import("@/lib/roles").AppRole })}
+                    className={inputClass}
+                  >
+                    <option value="Admin">Admin — Manage users, roles, plugins, and models</option>
+                    <option value="Developer">Developer — Install and configure MCP servers, view API keys</option>
+                    <option value="User">User — Browse, install free plugins, add personal API keys</option>
+                  </select>
+                )}
+                {user?.role !== "Owner" && (
+                  <p className="text-xs text-muted-foreground italic">Role changes take effect immediately across all pages.</p>
+                )}
               </div>
+
+              {/* Ownership Transfer Panel — only visible to current Owner */}
+              {user?.role === "Owner" && (
+                <div className="rounded-lg border bg-muted/30 p-4 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm font-medium">Transfer Ownership</p>
+                    <a href="/docs/ownership-transfer" target="_blank" className="text-xs text-primary underline underline-offset-2">Rules ↗</a>
+                  </div>
+
+                  {user.pendingOwnerTransfer ? (
+                    /* Transfer in progress */
+                    <div className="space-y-2.5">
+                      <div className="rounded-md bg-yellow-50 dark:bg-yellow-950/30 border border-yellow-200 dark:border-yellow-800 px-3 py-2.5 text-sm space-y-1">
+                        <p className="font-medium text-yellow-800 dark:text-yellow-300">⏳ Transfer pending</p>
+                        <p className="text-xs text-yellow-700 dark:text-yellow-400">
+                          To: <strong>{user.pendingOwnerTransfer.toEmail}</strong><br />
+                          {hoursLeft > 0
+                            ? `Completes automatically in ~${Math.ceil(hoursLeft)} hour${Math.ceil(hoursLeft) !== 1 ? "s" : ""}`
+                            : "Cooling-off period complete — transfer will finalise on next login."}
+                        </p>
+                      </div>
+                      <button
+                        onClick={cancelOwnerTransfer}
+                        className="w-full rounded-md border border-destructive/50 text-destructive px-3 py-2 text-sm hover:bg-destructive/10 transition-colors"
+                      >
+                        Cancel Transfer
+                      </button>
+                    </div>
+                  ) : (
+                    /* Initiate transfer */
+                    <div className="space-y-2">
+                      <p className="text-xs text-muted-foreground">
+                        Enter the email of the new Owner. They must already have a platform account. A 24-hr cooling-off period applies — you can cancel during this window.
+                      </p>
+                      <div className="flex gap-2">
+                        <input
+                          type="email"
+                          placeholder="newowner@university.edu"
+                          className={inputClass + " flex-1"}
+                          value={transferEmail}
+                          onChange={(e) => setTransferEmail(e.target.value)}
+                        />
+                        <button
+                          disabled={!transferEmail.includes("@")}
+                          onClick={() => setTransferConfirmOpen(true)}
+                          className="shrink-0 rounded-md bg-orange-600 text-white px-3 py-2 text-sm font-medium hover:bg-orange-700 disabled:opacity-40 transition-colors"
+                        >
+                          Initiate
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Confirmation dialog */}
+                  {transferConfirmOpen && (
+                    <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-3 space-y-3">
+                      <p className="text-sm font-medium text-destructive">Confirm ownership transfer</p>
+                      <p className="text-xs text-muted-foreground">
+                        Transfer to <strong>{transferEmail}</strong>? A 24-hr cooling-off period begins now. You remain Owner until the window expires or you confirm completion. This action can be cancelled during the 24-hr window.
+                      </p>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => {
+                            initiateOwnerTransfer(transferEmail);
+                            setTransferConfirmOpen(false);
+                            setTransferEmail("");
+                          }}
+                          className="flex-1 rounded-md bg-destructive text-destructive-foreground px-3 py-2 text-xs font-medium hover:bg-destructive/90"
+                        >
+                          Yes, start transfer
+                        </button>
+                        <button
+                          onClick={() => setTransferConfirmOpen(false)}
+                          className="flex-1 rounded-md border px-3 py-2 text-xs hover:bg-accent"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* Save confirmation */}
               {saveConfirm && (
