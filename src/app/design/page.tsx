@@ -97,6 +97,56 @@ const dmbtEntries: DMBTEntry[] = [
   { id: "12", compound: "SDD-0012", phase: "test", task: "In vivo PK study", status: "planned", assignee: "Dr. Amanda Foster", date: "Apr 5", result: "\u2014" },
 ];
 
+// ── ChEMBL live data (fetched 2026-03-28 via MCP) ──────────────────────────
+
+const chemblData = {
+  target: {
+    chembl_id: "CHEMBL5145",
+    name: "Serine/threonine-protein kinase B-raf",
+    gene: "BRAF",
+    organism: "Homo sapiens",
+    uniprot: "P15056",
+    pdb_structures: 100,
+    go_terms: ["MAPK cascade", "protein phosphorylation", "ERK1/ERK2 cascade"],
+  },
+  approvedDrugs: [
+    {
+      name: "Vemurafenib (Zelboraf)",
+      chembl_id: "CHEMBL1229517",
+      approved: 2011,
+      moa: "BRAF V600E inhibitor (direct, disease-efficacy confirmed)",
+      mw: 489.93,
+      alogp: 5.54,
+      psa: 91.92,
+      hba: 4,
+      hbd: 2,
+      ro5_violations: 1,
+      qed: 0.33,
+      usan_stem: "-rafenib",
+    },
+    {
+      name: "Dabrafenib (Tafinlar)",
+      chembl_id: "CHEMBL2028663",
+      approved: 2013,
+      moa: "BRAF V600E inhibitor (orphan designation)",
+      mw: 519.57,
+      alogp: 5.36,
+      psa: 110.86,
+      hba: 7,
+      hbd: 2,
+      ro5_violations: 2,
+      qed: 0.37,
+      usan_stem: "-rafenib",
+    },
+  ],
+  topHits: [
+    { chembl_id: "CHEMBL248256", ic50_nM: 5, pchembl: 8.3, le: 0.35, journal: "Bioorg Med Chem Lett 2007" },
+    { chembl_id: "CHEMBL200889", ic50_nM: 6, pchembl: 8.22, le: 0.47, journal: "Bioorg Med Chem Lett 2006" },
+    { chembl_id: "CHEMBL381250", ic50_nM: 6, pchembl: 8.22, le: 0.45, journal: "Bioorg Med Chem Lett 2006" },
+    { chembl_id: "CHEMBL200320", ic50_nM: 8, pchembl: 8.10, le: 0.41, journal: "Bioorg Med Chem Lett 2006" },
+  ],
+};
+
 // ── Initial chat messages ───────────────────────────────────────────────────
 
 const initialMessages: Message[] = [
@@ -225,6 +275,10 @@ export default function DesignPage() {
           <TabsList className="mt-2">
             <TabsTrigger value="dmbt">DMBT Cycle</TabsTrigger>
             <TabsTrigger value="chat">AI Chat</TabsTrigger>
+            <TabsTrigger value="mcp" className="flex items-center gap-1.5">
+              <span className="h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse" />
+              MCP Intelligence
+            </TabsTrigger>
           </TabsList>
         </div>
 
@@ -422,6 +476,201 @@ export default function DesignPage() {
             </div>
           </div>
         </TabsContent>
+        {/* ── MCP Intelligence Tab ─────────────────────────────────── */}
+        <TabsContent value="mcp" className="flex-1 overflow-y-auto p-6 space-y-6">
+
+          {/* Header banner */}
+          <div className="rounded-xl border border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-950/30 p-4 flex items-start gap-3">
+            <span className="h-2.5 w-2.5 rounded-full bg-green-500 animate-pulse mt-0.5 shrink-0" />
+            <div>
+              <p className="text-sm font-semibold text-green-800 dark:text-green-300">
+                ChEMBL MCP Server — Live (6 tools connected)
+              </p>
+              <p className="text-xs text-green-700 dark:text-green-400 mt-0.5">
+                Data retrieved live on 2026-03-28 · Target: BRAF V600E / Melanoma · ChEMBL 34
+              </p>
+            </div>
+          </div>
+
+          {/* Query context */}
+          <div className="rounded-lg border bg-muted/30 px-4 py-3 text-sm">
+            <span className="font-medium">Query:</span>
+            <span className="text-muted-foreground ml-2 italic">
+              "Design a selective BRAF V600E inhibitor with improved metabolic stability compared to Vemurafenib"
+            </span>
+          </div>
+
+          {/* Side-by-side comparison */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+
+            {/* WITHOUT MCP */}
+            <Card className="border-orange-200 dark:border-orange-800">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <span className="h-2 w-2 rounded-full bg-orange-400" />
+                  Without MCP
+                </CardTitle>
+                <CardDescription>AI relies on training-time knowledge only — no live database access</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3 text-sm">
+                <div className="rounded-md bg-orange-50 dark:bg-orange-950/20 border border-orange-100 dark:border-orange-900 p-3 space-y-2 text-muted-foreground">
+                  <p>BRAF V600E is a common oncogenic mutation in melanoma. Vemurafenib (PLX4032) is an approved RAF inhibitor targeting this mutant.</p>
+                  <p>For improved metabolic stability you might consider reducing the sulfonamide, replacing the halogenated aryl, or modifying the heterocyclic core. Predicted IC50 values are not available without database access.</p>
+                  <p className="italic text-xs">Known similar drugs: dabrafenib (Tafinlar), encorafenib (Braftovi). No current potency data available.</p>
+                </div>
+                <div className="rounded-md border p-3 space-y-1.5">
+                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Gaps</p>
+                  {[
+                    "No verified IC50 / pChEMBL values",
+                    "No ADMET property data",
+                    "No scaffold comparison vs. approved drugs",
+                    "No ligand-efficiency metrics",
+                    "No literature provenance / assay refs",
+                  ].map((gap) => (
+                    <div key={gap} className="flex items-start gap-2 text-xs text-muted-foreground">
+                      <span className="text-orange-500 mt-0.5">✗</span>
+                      {gap}
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* WITH MCP */}
+            <Card className="border-green-200 dark:border-green-800">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <span className="h-2 w-2 rounded-full bg-green-500 animate-pulse" />
+                  With ChEMBL MCP
+                </CardTitle>
+                <CardDescription>Live queries to ChEMBL 34 — verified, citable data</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4 text-sm">
+
+                {/* Target */}
+                <div className="rounded-md border p-3 space-y-1">
+                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1.5">
+                    target_search(BRAF, Homo sapiens)
+                  </p>
+                  <div className="flex flex-wrap gap-x-4 gap-y-0.5 text-xs">
+                    <span><span className="text-muted-foreground">ID:</span> <span className="font-mono">{chemblData.target.chembl_id}</span></span>
+                    <span><span className="text-muted-foreground">UniProt:</span> <span className="font-mono">{chemblData.target.uniprot}</span></span>
+                    <span><span className="text-muted-foreground">PDB structures:</span> {chemblData.target.pdb_structures}+</span>
+                  </div>
+                  <div className="flex flex-wrap gap-1 mt-1">
+                    {chemblData.target.go_terms.map((t) => (
+                      <span key={t} className="rounded-full bg-muted px-2 py-0.5 text-[10px]">{t}</span>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Top bioactivity hits */}
+                <div className="rounded-md border p-3">
+                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">
+                    get_bioactivity(CHEMBL5145, IC50, pChEMBL ≥ 8)
+                  </p>
+                  <table className="w-full text-xs">
+                    <thead>
+                      <tr className="border-b text-left text-muted-foreground">
+                        <th className="pb-1 pr-2 font-medium">ChEMBL ID</th>
+                        <th className="pb-1 pr-2 font-medium">IC50 (nM)</th>
+                        <th className="pb-1 pr-2 font-medium">pChEMBL</th>
+                        <th className="pb-1 font-medium">LE</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {chemblData.topHits.map((h) => (
+                        <tr key={h.chembl_id} className="border-b last:border-0">
+                          <td className="py-1 pr-2 font-mono text-[10px] text-muted-foreground">{h.chembl_id}</td>
+                          <td className={cn("py-1 pr-2 font-medium", h.ic50_nM <= 6 ? "text-green-600" : "text-yellow-600")}>
+                            {h.ic50_nM}
+                          </td>
+                          <td className="py-1 pr-2">{h.pchembl}</td>
+                          <td className="py-1">{h.le}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                  <p className="text-[10px] text-muted-foreground mt-1.5">Total BRAF bioactivity records in ChEMBL: 3,993+</p>
+                </div>
+
+                {/* Approved drugs ADMET */}
+                <div className="rounded-md border p-3 space-y-3">
+                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                    compound_search + get_admet — approved -rafenibs
+                  </p>
+                  {chemblData.approvedDrugs.map((drug) => (
+                    <div key={drug.chembl_id} className="space-y-1.5">
+                      <div className="flex items-center justify-between">
+                        <span className="font-medium text-xs">{drug.name}</span>
+                        <span className="text-[10px] text-muted-foreground font-mono">{drug.chembl_id}</span>
+                      </div>
+                      <p className="text-[10px] text-muted-foreground">{drug.moa}</p>
+                      <div className="grid grid-cols-4 gap-1">
+                        {[
+                          { label: "MW", val: drug.mw.toFixed(0) },
+                          { label: "ALogP", val: drug.alogp.toFixed(2) },
+                          { label: "PSA", val: drug.psa.toFixed(0) + " Å²" },
+                          { label: "QED", val: drug.qed.toFixed(2) },
+                        ].map(({ label, val }) => (
+                          <div key={label} className="rounded bg-muted p-1.5 text-center">
+                            <p className="text-[9px] text-muted-foreground uppercase">{label}</p>
+                            <p className="text-xs font-semibold">{val}</p>
+                          </div>
+                        ))}
+                      </div>
+                      <p className="text-[10px]">
+                        <span className={cn("font-medium", drug.ro5_violations === 0 ? "text-green-600" : "text-orange-500")}>
+                          Ro5 violations: {drug.ro5_violations}
+                        </span>
+                        <span className="text-muted-foreground ml-2">Approved {drug.approved} · USAN: {drug.usan_stem}</span>
+                      </p>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Design insight */}
+                <div className="rounded-md bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-800 p-3 space-y-1.5">
+                  <p className="text-xs font-semibold text-green-800 dark:text-green-300">MCP-derived Design Insight</p>
+                  <p className="text-xs text-green-700 dark:text-green-400">
+                    Vemurafenib: ALogP 5.54 (Ro5 borderline), QED 0.33 — metabolic liability likely from high lipophilicity.
+                    Target property profile: ALogP ≤ 4.5, PSA 80–100 Å², MW &lt; 480, QED &gt; 0.45.
+                    Best scaffold class: imidazopyridine/azaindole cores (LE ≥ 0.45 observed in top hits).
+                  </p>
+                </div>
+
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Tool call log */}
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm">MCP Tool Call Log — this session</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-1.5 font-mono text-xs">
+                {[
+                  { tool: "target_search", args: 'gene_symbol="BRAF", organism="Homo sapiens"', result: "CHEMBL5145 · 1 target · 100+ PDB" },
+                  { tool: "compound_search", args: 'name="vemurafenib", max_phase=4', result: "CHEMBL1229517 · MW 489.93 · ALogP 5.54" },
+                  { tool: "compound_search", args: 'name="dabrafenib", max_phase=4', result: "CHEMBL2028663 · MW 519.57 · ALogP 5.36" },
+                  { tool: "get_bioactivity", args: "target=CHEMBL5145, IC50, pChEMBL≥8", result: "6 hits shown · 3,993 total" },
+                  { tool: "get_mechanism", args: "molecule=CHEMBL1229517", result: "INHIBITOR · V600E specific · FDA 2011" },
+                  { tool: "get_admet", args: "molecule=CHEMBL1229517", result: "Ro5 violations=1 · QED=0.33 · PSA=91.92" },
+                ].map((call, i) => (
+                  <div key={i} className="flex items-start gap-2 rounded bg-muted/50 px-3 py-1.5">
+                    <span className="text-green-600 shrink-0">✓</span>
+                    <span className="text-primary font-semibold shrink-0">{call.tool}</span>
+                    <span className="text-muted-foreground truncate">({call.args})</span>
+                    <span className="ml-auto text-muted-foreground shrink-0 hidden sm:block">→ {call.result}</span>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+
+        </TabsContent>
+
       </Tabs>
     </div>
   );

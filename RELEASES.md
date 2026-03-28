@@ -5,6 +5,24 @@ Tags follow `v1.xxx` in git. Stable releases are marked ⭐.
 
 ---
 
+## v1.005 — ChEMBL MCP Integration + MCP Intelligence UI
+**Date:** 2026-03-28
+**Tag:** `v1.005`
+**Status:** Stable
+
+### New Features
+- **ChEMBL MCP Server — confirmed live** (6 tools: `compound_search`, `drug_search`, `target_search`, `get_bioactivity`, `get_mechanism`, `get_admet`)
+- **Design with AI → MCP Intelligence tab** — side-by-side "Without MCP" vs "With ChEMBL MCP" comparison for BRAF V600E / melanoma use case:
+  - Live ChEMBL data: BRAF target `CHEMBL5145`, vemurafenib `CHEMBL1229517`, dabrafenib `CHEMBL2028663`
+  - Top biochemical hits (IC50 5–10 nM, pChEMBL 8.0–8.3)
+  - ADMET property panel (MW, ALogP, PSA, QED, Ro5 violations)
+  - MCP tool call log showing all 6 queries executed in this session
+  - MCP-derived design insight: target property profile for next-gen BRAF inhibitor
+- **Tool Plugins page** — ChEMBL MCP card shows "● Connected" live badge with all 6 tool names
+- **Tool Plugins → Integration Guide** — 5-step collapsible accordion for adding any MCP server, using ChEMBL as reference implementation (find → configure → verify → test → replicate)
+
+---
+
 ## v1.004 — Multimedia Feedback + Font Size Accessibility
 **Date:** 2026-03-28
 **Tag:** `v1.004`

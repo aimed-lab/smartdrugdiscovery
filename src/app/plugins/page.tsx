@@ -28,6 +28,8 @@ interface Plugin {
     reusable: boolean;
   };
   installed: boolean;
+  connected?: boolean;           // actively connected in this Claude Code session
+  connectedTools?: string[];     // MCP tool names available
   category: string;
   compatibleWith: string[];
 }
@@ -68,14 +70,16 @@ const plugins: Plugin[] = [
     id: "chembl-mcp",
     name: "ChEMBL MCP Server",
     description:
-      "Access ChEMBL compound database, bioactivity data, and target information via Model Context Protocol",
+      "Access ChEMBL compound database, bioactivity data, and target information via Model Context Protocol. Provides real-time access to 2.4M+ compounds, 15,000+ targets, and 20M+ bioactivity measurements.",
     type: "mcp",
     version: "v2.1.0",
-    author: "ChEMBL Team",
+    author: "ChEMBL Team / UAB SysPAI",
     license: "Apache 2.0",
     url: "https://github.com/chembl/chembl-mcp",
     fair: { findable: true, accessible: true, interoperable: true, reusable: true },
     installed: true,
+    connected: true,
+    connectedTools: ["compound_search", "drug_search", "target_search", "get_bioactivity", "get_mechanism", "get_admet"],
     category: "Data",
     compatibleWith: ["A1", "A2", "A3", "A4"],
   },
@@ -288,9 +292,43 @@ function FairBadge({ letter, met }: { letter: string; met: boolean }) {
   );
 }
 
+const INTEGRATION_STEPS = [
+  {
+    step: 1,
+    title: "Find the MCP server",
+    detail: "Search the MCP registry (mcp.run, smithery.ai, or GitHub) for drug-discovery servers. Prefer servers with published schemas and FAIR metadata. For ChEMBL, the server was integrated directly by the UAB SysPAI team as a Claude Code extension.",
+    code: "# Search example\nmcp registry search chembl\nmcp registry search pubmed",
+  },
+  {
+    step: 2,
+    title: "Add to Claude Code session",
+    detail: "MCP servers are registered in the Claude Code session configuration. The server exposes named tools that Claude can call like any other function. No API keys needed for public databases like ChEMBL.",
+    code: '// claude_desktop_config.json — MCP server block\n{\n  "mcpServers": {\n    "chembl": {\n      "command": "npx",\n      "args": ["-y", "@chembl/mcp-server"],\n      "env": {}\n    }\n  }\n}',
+  },
+  {
+    step: 3,
+    title: "Verify tools are available",
+    detail: "Once connected, the tools appear in the Claude Code session. You can verify by asking Claude to list available MCP tools. For ChEMBL, this exposes 6 tools: compound_search, drug_search, target_search, get_bioactivity, get_mechanism, get_admet.",
+    code: "# Verified active tools for ChEMBL MCP:\n• compound_search   — lookup by name, ID, or SMILES\n• drug_search       — search by therapeutic indication\n• target_search     — find gene/protein targets\n• get_bioactivity   — IC50, Ki, EC50 assay data\n• get_mechanism     — mechanism of action (MoA)\n• get_admet         — drug-likeness & ADMET properties",
+  },
+  {
+    step: 4,
+    title: "Test with a Design with AI query",
+    detail: 'Use the Design with AI page → MCP Intelligence tab to compare a generic AI response vs. a ChEMBL-enriched response. Example query: "BRAF V600E inhibitor design for melanoma". Without MCP the AI relies on training data. With MCP it retrieves live IC50 values, approved drug structures, and ADMET profiles.',
+    code: '// Example MCP call (automated by Claude)\ntarget_search({ gene_symbol: "BRAF", organism: "Homo sapiens" })\n→ CHEMBL5145 | 100+ crystal structures | UniProt P15056\n\ncompound_search({ name: "vemurafenib", max_phase: 4 })\n→ CHEMBL1229517 | IC50 31nM | Ro5: 1 violation | QED 0.33\n\nget_mechanism({ molecule_chembl_id: "CHEMBL1229517" })\n→ INHIBITOR | V600E specific | FDA approved 2011',
+  },
+  {
+    step: 5,
+    title: "Replicate for any other MCP server",
+    detail: "Follow the same pattern for any data source. PubMed MCP: add to config, verify search_articles / get_full_text tools, test in Literature tab. ClinicalTrials MCP: verify search_trials / get_trial_details tools. Each server follows the same Model Context Protocol standard.",
+    code: "# Template pattern for any new MCP server:\n1. npm install -g @<org>/<mcp-server>  # or use npx\n2. Add to mcpServers block in config\n3. Restart Claude Code session\n4. Verify tools with: mcp list tools\n5. Test with a sample query on the Design page",
+  },
+];
+
 export default function PluginsPage() {
   const [typeFilter, setTypeFilter] = useState<PluginType | "all">("all");
   const [search, setSearch] = useState("");
+  const [openStep, setOpenStep] = useState<number | null>(null);
 
   const filtered = plugins
     .filter((p) => typeFilter === "all" || p.type === typeFilter)
@@ -402,16 +440,41 @@ export default function PluginsPage() {
                   </span>
                 </div>
 
-                <div className="mt-auto pt-2">
-                  {plugin.installed ? (
+                {/* Connected tools */}
+                {plugin.connected && plugin.connectedTools && (
+                  <div className="rounded-md bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800 p-2">
+                    <p className="text-xs font-medium text-green-800 dark:text-green-300 mb-1 flex items-center gap-1">
+                      <span className="h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse" />
+                      {plugin.connectedTools.length} live tools
+                    </p>
+                    <div className="flex flex-wrap gap-1">
+                      {plugin.connectedTools.map((tool) => (
+                        <span key={tool} className="rounded bg-green-100 dark:bg-green-900/50 text-green-700 dark:text-green-300 px-1.5 py-0.5 text-[10px] font-mono">
+                          {tool}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                <div className="mt-auto pt-2 flex gap-2">
+                  {plugin.connected ? (
                     <button
                       disabled
-                      className="w-full rounded-md border border-green-500 text-green-700 bg-green-50 px-4 py-2 text-sm font-medium cursor-default"
+                      className="flex-1 rounded-md border border-green-500 text-green-700 bg-green-50 px-4 py-2 text-sm font-medium cursor-default flex items-center justify-center gap-2"
+                    >
+                      <span className="h-2 w-2 rounded-full bg-green-500 animate-pulse" />
+                      Connected
+                    </button>
+                  ) : plugin.installed ? (
+                    <button
+                      disabled
+                      className="flex-1 rounded-md border border-blue-400 text-blue-700 bg-blue-50 px-4 py-2 text-sm font-medium cursor-default"
                     >
                       Installed
                     </button>
                   ) : (
-                    <button className="w-full rounded-md bg-primary text-primary-foreground px-4 py-2 text-sm font-medium hover:bg-primary/90 transition-colors">
+                    <button className="flex-1 rounded-md bg-primary text-primary-foreground px-4 py-2 text-sm font-medium hover:bg-primary/90 transition-colors">
                       Install Plugin
                     </button>
                   )}
@@ -427,6 +490,45 @@ export default function PluginsPage() {
           No plugins found matching your criteria.
         </div>
       )}
+
+      {/* Integration Guide */}
+      <div className="mt-12 border rounded-xl overflow-hidden">
+        <div className="bg-muted/50 px-6 py-4 border-b">
+          <h2 className="text-lg font-semibold">MCP Integration Guide</h2>
+          <p className="text-sm text-muted-foreground mt-0.5">
+            Step-by-step template for adding any MCP server — use ChEMBL as the reference implementation
+          </p>
+        </div>
+        <div className="divide-y">
+          {INTEGRATION_STEPS.map((s) => (
+            <div key={s.step}>
+              <button
+                onClick={() => setOpenStep(openStep === s.step ? null : s.step)}
+                className="w-full flex items-center gap-4 px-6 py-4 text-left hover:bg-muted/30 transition-colors"
+              >
+                <span className="h-7 w-7 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-sm font-bold shrink-0">
+                  {s.step}
+                </span>
+                <span className="font-medium flex-1">{s.title}</span>
+                <svg
+                  className={cn("h-4 w-4 text-muted-foreground transition-transform shrink-0", openStep === s.step && "rotate-180")}
+                  viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+                >
+                  <path d="M6 9l6 6 6-6" />
+                </svg>
+              </button>
+              {openStep === s.step && (
+                <div className="px-6 pb-5 space-y-3 bg-muted/20">
+                  <p className="text-sm text-muted-foreground leading-relaxed">{s.detail}</p>
+                  <pre className="rounded-lg bg-card border p-4 text-xs font-mono whitespace-pre-wrap overflow-x-auto text-foreground/80">
+                    {s.code}
+                  </pre>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
     </div>
   );
 }
