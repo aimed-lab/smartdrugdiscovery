@@ -338,30 +338,34 @@ export default function ServicesPage() {
             ))}
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 items-stretch">
             {filteredAgents.map((agent) => (
-              <Card key={agent.id}>
-                <CardHeader>
-                  <div className="flex justify-between items-start">
-                    <CardTitle className="text-lg">{agent.name}</CardTitle>
+              <Card key={agent.id} className="flex flex-col">
+                <CardHeader className="pb-3">
+                  <div className="flex justify-between items-start gap-2">
+                    <CardTitle className="text-base leading-snug flex-1 min-h-[2.5rem] line-clamp-2">
+                      {agent.name}
+                    </CardTitle>
                     <span
                       className={cn(
-                        "rounded-full px-2.5 py-0.5 text-xs font-medium capitalize",
+                        "rounded-full px-2.5 py-0.5 text-xs font-medium capitalize shrink-0",
                         statusBadgeColors[agent.status]
                       )}
                     >
                       {agent.status}
                     </span>
                   </div>
-                  <CardDescription>{agent.description}</CardDescription>
+                  <CardDescription className="line-clamp-2 min-h-[2.5rem]">
+                    {agent.description}
+                  </CardDescription>
                 </CardHeader>
-                <CardContent>
+                <CardContent className="flex flex-col flex-1 pb-4">
                   <p className="text-xs font-medium text-muted-foreground mb-2">
                     Capabilities
                   </p>
                   <ul className="text-xs text-muted-foreground space-y-1">
                     {agent.capabilities.map((cap) => (
-                      <li key={cap}>• {cap}</li>
+                      <li key={cap} className="truncate" title={cap}>• {cap}</li>
                     ))}
                   </ul>
 
@@ -381,20 +385,14 @@ export default function ServicesPage() {
                     ))}
                   </div>
 
-                  <div className="flex items-center justify-between text-sm mt-3">
-                    <span className="font-medium">
-                      {agent.successRate}%
-                    </span>
-                    <span className="text-muted-foreground">
-                      {agent.avgRunTime}
-                    </span>
-                    <span className="text-muted-foreground">
-                      {agent.creditsPerRun} credits
-                    </span>
+                  <div className="flex items-center justify-between text-sm mt-auto pt-3">
+                    <span className="font-medium">{agent.successRate}%</span>
+                    <span className="text-muted-foreground">{agent.avgRunTime}</span>
+                    <span className="text-muted-foreground">{agent.creditsPerRun} credits</span>
                   </div>
 
                   <button
-                    className="w-full mt-4 rounded-md px-4 py-2 text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="w-full mt-3 rounded-md px-4 py-2 text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
                     disabled={agent.status !== "available"}
                   >
                     Run Agent
@@ -424,26 +422,26 @@ export default function ServicesPage() {
             ))}
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-stretch">
             {filteredExperts.map((expert) => (
-              <Card key={expert.id}>
-                <CardHeader>
+              <Card key={expert.id} className="flex flex-col">
+                <CardHeader className="pb-3">
                   <div className="flex gap-3 items-start">
                     <div
                       className={cn(
-                        "h-12 w-12 rounded-full flex items-center justify-center text-sm font-bold text-white",
+                        "h-12 w-12 rounded-full flex items-center justify-center text-sm font-bold text-white shrink-0",
                         avatarColors[expert.category]
                       )}
                     >
                       {expert.initials}
                     </div>
-                    <div className="flex-1">
-                      <CardTitle className="text-lg">{expert.name}</CardTitle>
-                      <CardDescription>{expert.title}</CardDescription>
+                    <div className="flex-1 min-w-0">
+                      <CardTitle className="text-base truncate">{expert.name}</CardTitle>
+                      <CardDescription className="truncate">{expert.title}</CardDescription>
                     </div>
                     <span
                       className={cn(
-                        "rounded-full px-2.5 py-0.5 text-xs font-medium capitalize",
+                        "rounded-full px-2.5 py-0.5 text-xs font-medium capitalize shrink-0",
                         availabilityBadgeColors[expert.availability]
                       )}
                     >
@@ -451,8 +449,8 @@ export default function ServicesPage() {
                     </span>
                   </div>
                 </CardHeader>
-                <CardContent>
-                  <p className="text-sm text-muted-foreground line-clamp-2">
+                <CardContent className="flex flex-col flex-1 pb-4">
+                  <p className="text-sm text-muted-foreground line-clamp-2 min-h-[2.5rem]">
                     {expert.bio}
                   </p>
 
@@ -460,7 +458,8 @@ export default function ServicesPage() {
                     {expert.specialties.map((spec) => (
                       <span
                         key={spec}
-                        className="rounded-full bg-muted px-2.5 py-0.5 text-xs"
+                        className="rounded-full bg-muted px-2.5 py-0.5 text-xs truncate max-w-[160px]"
+                        title={spec}
                       >
                         {spec}
                       </span>
@@ -481,18 +480,14 @@ export default function ServicesPage() {
                     ))}
                   </div>
 
-                  <div className="flex items-center justify-between mt-4 pt-3 border-t">
+                  <div className="flex items-center justify-between mt-auto pt-3 border-t">
                     <div className="flex items-center gap-1.5">
-                      <span className="font-medium text-sm">
-                        {expert.rating}
-                      </span>
+                      <span className="font-medium text-sm">{expert.rating}</span>
                       <span className="text-muted-foreground text-sm">
                         ({expert.reviewCount} reviews)
                       </span>
                     </div>
-                    <span className="font-semibold text-sm">
-                      ${expert.hourlyRate}/hr
-                    </span>
+                    <span className="font-semibold text-sm">${expert.hourlyRate}/hr</span>
                   </div>
 
                   <button

@@ -191,6 +191,28 @@ const plugins: Plugin[] = [
       { label: 'build_network(drug="vemurafenib", disease="melanoma")', result: "✓ 147 nodes · 623 edges · Hub targets: BRAF, ERK2, MEK1 · Shortest path to apoptosis: 3 hops" },
     ],
   },
+  {
+    id: "talent-kg",
+    name: "Talent Knowledge Graph",
+    description: "Query researcher profiles, skills, availability, and project history to build optimal drug discovery teams from structured data",
+    type: "mcp",
+    version: "v1.0.0",
+    author: "UAB SysPAI",
+    license: "Internal",
+    url: "mcp://talent-kg.syspai.uab.edu",
+    pricing: "free",
+    requiresKey: false,
+    fair: { findable: true, accessible: true, interoperable: true, reusable: true },
+    installed: false,
+    connected: false,
+    category: "People & Teams",
+    compatibleWith: ["All models"],
+    testSteps: [
+      { label: 'search_experts({ skill: "BRAF kinase inhibitor" })', result: "3 matches: Dr. Sarah Chen (95%), Dr. Raj Patel (88%), Dr. Elena Vasquez (82%)" },
+      { label: 'get_availability({ person_ids: ["SC","RP"] })', result: "Sarah Chen: Available (80% capacity) · Raj Patel: Available (60% capacity)" },
+      { label: 'get_project_history({ person_id: "SC" })', result: "5 oncology programs: BRAF (lead), EGFR, KRAS, CDK4/6, MEK — all IND-stage or later" },
+    ],
+  },
 ];
 
 // ── Integration guide (Developer+ only) ───────────────────────────────────────
