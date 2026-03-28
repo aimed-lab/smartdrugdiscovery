@@ -22,6 +22,14 @@ export interface User {
   linkedin?: string;          // linkedin.com/in/... URL
   twitter?: string;           // @handle
   orcid?: string;             // 0000-0000-0000-0000
+
+  // ── Ownership transfer (24-hr cooling-off period) ─────────────────────────
+  // An Owner cannot downgrade their own role without completing a transfer.
+  // During the 24-hr window the transfer can be cancelled; afterwards it auto-completes.
+  pendingOwnerTransfer?: {
+    toEmail: string;      // recipient email
+    initiatedAt: string;  // ISO timestamp when initiated
+  };
 }
 
 interface AuthContextType {
@@ -31,6 +39,10 @@ interface AuthContextType {
   login: (email: string, inviteCode: string) => string | null;
   logout: () => void;
   updateUser: (updates: Partial<User>) => void;
+  /** Start the 24-hr ownership transfer to `toEmail`. */
+  initiateOwnerTransfer: (toEmail: string) => void;
+  /** Cancel a pending ownership transfer before the 24-hr window expires. */
+  cancelOwnerTransfer: () => void;
 }
 
 const VALID_INVITE_CODES = ["SPARC2026"];
@@ -130,6 +142,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     saveUserToDB(updated);
   };
 
+  const initiateOwnerTransfer = (toEmail: string) => {
+    if (!user || user.role !== "Owner") return;
+    const updated = {
+      ...user,
+      pendingOwnerTransfer: { toEmail, initiatedAt: new Date().toISOString() },
+    };
+    setUser(updated);
+    saveUserToDB(updated);
+  };
+
+  const cancelOwnerTransfer = () => {
+    if (!user) return;
+    const { pendingOwnerTransfer: _, ...rest } = user;
+    const updated = { ...rest };
+    setUser(updated);
+    saveUserToDB(updated);
+  };
+
   const logout = () => {
     setUser(null);
     setIsAuthenticated(false);
@@ -137,7 +167,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ isAuthenticated, loading, user, login, logout, updateUser }}>
+    <AuthContext.Provider value={{ isAuthenticated, loading, user, login, logout, updateUser, initiateOwnerTransfer, cancelOwnerTransfer }}>
       {children}
     </AuthContext.Provider>
   );
