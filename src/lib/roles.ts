@@ -91,30 +91,35 @@ export const ROLE_GLOW: Record<AppRole, string> = {
 
 // ── Role metadata ─────────────────────────────────────────────────────────────
 
-export const ROLE_META: Record<AppRole, { label: string; color: string; description: string }> = {
+export const ROLE_META: Record<AppRole, { label: string; color: string; dot: string; description: string }> = {
   Owner: {
     label: "Owner",
     color: "bg-orange-100 text-orange-800 dark:bg-orange-900/40 dark:text-orange-300",
+    dot: "bg-orange-500",
     description: "Full control — org settings, billing, transfer",
   },
   Admin: {
     label: "Admin",
     color: "bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300",
+    dot: "bg-red-500",
     description: "Manage users, roles, plugins, and models",
   },
   TechSupport: {
     label: "Tech Support",
     color: "bg-teal-100 text-teal-800 dark:bg-teal-900/40 dark:text-teal-300",
+    dot: "bg-teal-500",
     description: "View, triage, and resolve all support tickets",
   },
   Developer: {
     label: "Developer",
     color: "bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300",
+    dot: "bg-blue-500",
     description: "Install and configure MCP servers, view API keys",
   },
   User: {
     label: "User",
     color: "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300",
+    dot: "bg-gray-400",
     description: "Browse, install free plugins, add personal API keys",
   },
 };

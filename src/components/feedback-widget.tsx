@@ -122,6 +122,13 @@ export function FeedbackWidget({ user }: { user: { name: string; email: string; 
     setUsed((n) => n + 1);
 
     try {
+      // Read saved API key from localStorage (set in Settings → API Keys)
+      let clientApiKey: string | undefined;
+      try {
+        const stored = localStorage.getItem("sdd-api-keys");
+        if (stored) clientApiKey = (JSON.parse(stored) as Record<string, string>).anthropic || undefined;
+      } catch { /* ignore */ }
+
       const res = await fetch("/api/assistant", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -130,6 +137,7 @@ export function FeedbackWidget({ user }: { user: { name: string; email: string; 
           pageContext: currentUrl,
           role: user?.role ?? "User",
           history: [...chatHistory, userMsg].slice(-6),
+          ...(clientApiKey ? { apiKey: clientApiKey } : {}),
         }),
       });
       const data = await res.json() as { answer: string };

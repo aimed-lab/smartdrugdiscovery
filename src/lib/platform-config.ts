@@ -5,7 +5,7 @@
 export const PLATFORM_CONFIG = {
   name: "SmartDrugDiscovery",
   /** Semantic version shown in sidebar footer and Settings → About */
-  version: "1.100",
+  version: "1.123",
   /** Build date (ISO date or human label) */
   build: "2026-03-28",
   /** Edition / license tier */

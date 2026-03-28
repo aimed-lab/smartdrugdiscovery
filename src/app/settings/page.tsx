@@ -91,28 +91,42 @@ export default function SettingsPage() {
   const [emojiInput, setEmojiInput] = useState("");
   const photoInputRef = useRef<HTMLInputElement>(null);
 
+  const [photoUploading, setPhotoUploading] = useState(false);
+
   function handlePhotoUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      const dataUrl = ev.target?.result as string;
-      // Resize to max 200×200 JPEG using canvas
-      const img = new Image();
-      img.onload = () => {
-        const canvas = document.createElement("canvas");
-        const size = Math.min(img.width, img.height, 200);
-        canvas.width = size; canvas.height = size;
-        const ctx = canvas.getContext("2d")!;
-        const sx = (img.width  - size) / 2;
-        const sy = (img.height - size) / 2;
-        ctx.drawImage(img, sx, sy, size, size, 0, 0, size, size);
-        updateUser({ avatarType: "photo", avatarPhoto: canvas.toDataURL("image/jpeg", 0.85) });
-      };
-      img.src = dataUrl;
+    e.target.value = ""; // reset immediately so same file can be picked again
+    setPhotoUploading(true);
+
+    // Use createObjectURL to avoid browser restrictions on data: URIs for Image src
+    const objectUrl = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      URL.revokeObjectURL(objectUrl);
+      const canvas = document.createElement("canvas");
+      const size = Math.min(img.width, img.height, 200);
+      canvas.width = size; canvas.height = size;
+      const ctx = canvas.getContext("2d")!;
+      const sx = (img.width  - size) / 2;
+      const sy = (img.height - size) / 2;
+      ctx.drawImage(img, sx, sy, size, size, 0, 0, size, size);
+      updateUser({ avatarType: "photo", avatarPhoto: canvas.toDataURL("image/jpeg", 0.85) });
+      setPhotoUploading(false);
     };
-    reader.readAsDataURL(file);
-    e.target.value = "";
+    img.onerror = () => {
+      URL.revokeObjectURL(objectUrl);
+      // Fallback: store raw base64 without resize
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        const dataUrl = ev.target?.result as string;
+        updateUser({ avatarType: "photo", avatarPhoto: dataUrl });
+        setPhotoUploading(false);
+      };
+      reader.onerror = () => setPhotoUploading(false);
+      reader.readAsDataURL(file);
+    };
+    img.src = objectUrl;
   }
 
   function applyEmoji() {
@@ -138,7 +152,42 @@ export default function SettingsPage() {
     pdb: false,
   });
 
-  const [darkMode, setDarkMode] = useState(false);
+  // Editable API key values (loaded from/saved to localStorage)
+  const [editableKeys, setEditableKeys] = useState<Record<string, string>>({
+    anthropic: "",
+    groq: "",
+    openai: "",
+    chembl: "",
+    pubmed: "",
+    uniprot: "",
+    pdb: "",
+  });
+  const [apiKeySaved, setApiKeySaved] = useState(false);
+
+  // Load saved keys on mount
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem("sdd-api-keys");
+      if (stored) {
+        const parsed = JSON.parse(stored) as Record<string, string>;
+        setEditableKeys((prev) => ({ ...prev, ...parsed }));
+      }
+    } catch { /* ignore */ }
+  }, []);
+
+  function saveApiKeys() {
+    localStorage.setItem("sdd-api-keys", JSON.stringify(editableKeys));
+    setApiKeySaved(true);
+    setTimeout(() => setApiKeySaved(false), 3000);
+  }
+
+  const [darkMode, setDarkMode] = useState(() => {
+    if (typeof window !== "undefined") {
+      return localStorage.getItem("sdd-theme") === "dark" ||
+        document.documentElement.classList.contains("dark");
+    }
+    return false;
+  });
   const [defaultProject, setDefaultProject] = useState("project-alpha");
   const [notifications, setNotifications] = useState({
     experimentCompletion: true,
@@ -293,9 +342,10 @@ export default function SettingsPage() {
                     <button
                       type="button"
                       onClick={() => photoInputRef.current?.click()}
-                      className="rounded-md border border-input px-3 py-1.5 text-xs hover:bg-accent"
+                      disabled={photoUploading}
+                      className="rounded-md border border-input px-3 py-1.5 text-xs hover:bg-accent disabled:opacity-60"
                     >
-                      Upload photo
+                      {photoUploading ? "Uploading…" : "Upload photo"}
                     </button>
                     <input ref={photoInputRef} type="file" accept="image/*" className="hidden" onChange={handlePhotoUpload} />
                   </div>
@@ -516,111 +566,112 @@ export default function SettingsPage() {
                 </div>
 
                 {user?.role === "Owner" ? (
-                  /* Owner role is locked — cannot self-demote */
-                  <div className="rounded-lg border border-orange-200 dark:border-orange-800 bg-orange-50/50 dark:bg-orange-950/20 p-3 space-y-1.5">
-                    <div className="flex items-center gap-2">
-                      <span className="h-2 w-2 rounded-full bg-orange-500 shrink-0" />
-                      <span className="text-sm font-medium text-orange-800 dark:text-orange-300">Owner</span>
-                      <span className="text-xs text-orange-600 dark:text-orange-400 ml-auto">🔒 Locked</span>
+                  /* Owner — locked, show all role cards for preview only */
+                  <div className="space-y-2">
+                    <div className="grid gap-2 sm:grid-cols-2">
+                      {(["Owner","Admin","TechSupport","Developer","User"] as import("@/lib/roles").AppRole[]).map((r) => (
+                        <div
+                          key={r}
+                          className={`rounded-lg border p-3 space-y-1 ${r === "Owner" ? "border-orange-300 dark:border-orange-700 bg-orange-50/50 dark:bg-orange-950/20" : "opacity-50"}`}
+                        >
+                          <div className="flex items-center gap-2">
+                            <span className={`h-2 w-2 rounded-full shrink-0 ${ROLE_META[r]?.dot ?? "bg-gray-400"}`} />
+                            <span className="text-sm font-medium">{r}</span>
+                            {r === "Owner" && <span className="text-[10px] text-orange-600 dark:text-orange-400 ml-auto">🔒 Active</span>}
+                          </div>
+                          <p className="text-[11px] text-muted-foreground leading-snug">{ROLE_META[r]?.description ?? ""}</p>
+                        </div>
+                      ))}
                     </div>
-                    <p className="text-xs text-muted-foreground leading-relaxed">
-                      Owners cannot downgrade their own role. To change roles, first transfer ownership to another member — a <strong>24-hour cooling-off period</strong> applies before the transfer completes.
-                    </p>
+                    <p className="text-xs text-muted-foreground italic">Owner role is locked. To switch roles, transfer ownership first.</p>
                   </div>
                 ) : (
-                  <select
-                    value={user?.role ?? "User"}
-                    onChange={(e) => updateUser({ role: e.target.value as import("@/lib/roles").AppRole })}
-                    className={inputClass}
-                  >
-                    <option value="Admin">Admin — Manage users, roles, plugins, and models</option>
-                    <option value="Developer">Developer — Install and configure MCP servers, view API keys</option>
-                    <option value="User">User — Browse, install free plugins, add personal API keys</option>
-                  </select>
-                )}
-                {user?.role !== "Owner" && (
-                  <p className="text-xs text-muted-foreground italic">Role changes take effect immediately across all pages.</p>
+                  /* Non-owner — interactive role cards */
+                  <div className="space-y-2">
+                    <div className="grid gap-2 sm:grid-cols-2">
+                      {(["Admin","TechSupport","Developer","User"] as import("@/lib/roles").AppRole[]).map((r) => {
+                        const active = user?.role === r;
+                        return (
+                          <button
+                            key={r}
+                            type="button"
+                            onClick={() => updateUser({ role: r })}
+                            className={`rounded-lg border p-3 text-left space-y-1 transition-all hover:shadow-sm ${active ? "border-primary ring-1 ring-primary bg-primary/5" : "hover:border-muted-foreground/40"}`}
+                          >
+                            <div className="flex items-center gap-2">
+                              <span className={`h-2 w-2 rounded-full shrink-0 ${ROLE_META[r]?.dot ?? "bg-gray-400"}`} />
+                              <span className="text-sm font-medium">{r}</span>
+                              {active && <span className="text-[10px] text-primary ml-auto font-medium">● Active</span>}
+                            </div>
+                            <p className="text-[11px] text-muted-foreground leading-snug">{ROLE_META[r]?.description ?? ""}</p>
+                          </button>
+                        );
+                      })}
+                    </div>
+                    <p className="text-xs text-muted-foreground italic">Role changes take effect immediately across all pages.</p>
+                  </div>
                 )}
               </div>
 
-              {/* Ownership Transfer Panel — only visible to current Owner */}
+              {/* Ownership Transfer — intentionally low-profile, Owner only */}
               {user?.role === "Owner" && (
-                <div className="rounded-lg border bg-muted/30 p-4 space-y-3">
-                  <div className="flex items-center justify-between">
-                    <p className="text-sm font-medium">Transfer Ownership</p>
-                    <a href="/docs/ownership-transfer" target="_blank" className="text-xs text-primary underline underline-offset-2">Rules ↗</a>
-                  </div>
-
+                <div className="pt-1">
                   {user.pendingOwnerTransfer ? (
-                    /* Transfer in progress */
-                    <div className="space-y-2.5">
-                      <div className="rounded-md bg-yellow-50 dark:bg-yellow-950/30 border border-yellow-200 dark:border-yellow-800 px-3 py-2.5 text-sm space-y-1">
-                        <p className="font-medium text-yellow-800 dark:text-yellow-300">⏳ Transfer pending</p>
-                        <p className="text-xs text-yellow-700 dark:text-yellow-400">
-                          To: <strong>{user.pendingOwnerTransfer.toEmail}</strong><br />
-                          {hoursLeft > 0
-                            ? `Completes automatically in ~${Math.ceil(hoursLeft)} hour${Math.ceil(hoursLeft) !== 1 ? "s" : ""}`
-                            : "Cooling-off period complete — transfer will finalise on next login."}
-                        </p>
-                      </div>
-                      <button
-                        onClick={cancelOwnerTransfer}
-                        className="w-full rounded-md border border-destructive/50 text-destructive px-3 py-2 text-sm hover:bg-destructive/10 transition-colors"
-                      >
-                        Cancel Transfer
-                      </button>
+                    <div className="rounded-md bg-yellow-50 dark:bg-yellow-950/30 border border-yellow-200 dark:border-yellow-800 px-3 py-2.5 text-sm space-y-2">
+                      <p className="font-medium text-yellow-800 dark:text-yellow-300 text-xs">⏳ Ownership transfer pending → {user.pendingOwnerTransfer.toEmail}</p>
+                      <p className="text-xs text-yellow-700 dark:text-yellow-400">
+                        {hoursLeft > 0
+                          ? `Completes in ~${Math.ceil(hoursLeft)} hour${Math.ceil(hoursLeft) !== 1 ? "s" : ""} — you can cancel below.`
+                          : "Cooling-off period complete — transfer finalises on next login."}
+                      </p>
+                      <button onClick={cancelOwnerTransfer} className="text-xs text-destructive hover:underline">Cancel transfer</button>
                     </div>
                   ) : (
-                    /* Initiate transfer */
-                    <div className="space-y-2">
-                      <p className="text-xs text-muted-foreground">
-                        Enter the email of the new Owner. They must already have a platform account. A 24-hr cooling-off period applies — you can cancel during this window.
-                      </p>
-                      <div className="flex gap-2">
-                        <input
-                          type="email"
-                          placeholder="newowner@university.edu"
-                          className={inputClass + " flex-1"}
-                          value={transferEmail}
-                          onChange={(e) => setTransferEmail(e.target.value)}
-                        />
-                        <button
-                          disabled={!transferEmail.includes("@")}
-                          onClick={() => setTransferConfirmOpen(true)}
-                          className="shrink-0 rounded-md bg-orange-600 text-white px-3 py-2 text-sm font-medium hover:bg-orange-700 disabled:opacity-40 transition-colors"
-                        >
-                          Initiate
-                        </button>
+                    <details className="group">
+                      <summary className="cursor-pointer text-[11px] text-muted-foreground/60 hover:text-muted-foreground select-none list-none flex items-center gap-1 w-fit">
+                        <span className="group-open:rotate-90 transition-transform inline-block">▶</span>
+                        Transfer platform ownership…
+                      </summary>
+                      <div className="mt-3 rounded-lg border border-dashed p-3 space-y-2">
+                        <p className="text-xs text-muted-foreground">Enter the email of the new Owner. They must have a platform account. A 24-hr cooling-off period applies.</p>
+                        <div className="flex gap-2">
+                          <input
+                            type="email"
+                            placeholder="newowner@university.edu"
+                            className={inputClass + " flex-1 text-xs"}
+                            value={transferEmail}
+                            onChange={(e) => setTransferEmail(e.target.value)}
+                          />
+                          <button
+                            disabled={!transferEmail.includes("@")}
+                            onClick={() => setTransferConfirmOpen(true)}
+                            className="shrink-0 rounded-md border border-orange-400 text-orange-700 dark:text-orange-300 px-3 py-1.5 text-xs hover:bg-orange-50 dark:hover:bg-orange-950/30 disabled:opacity-40 transition-colors"
+                          >
+                            Initiate
+                          </button>
+                        </div>
+                        {transferConfirmOpen && (
+                          <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-3 space-y-2">
+                            <p className="text-xs font-medium text-destructive">Confirm: transfer ownership to {transferEmail}?</p>
+                            <p className="text-[11px] text-muted-foreground">You remain Owner during the 24-hr window and can cancel at any time.</p>
+                            <div className="flex gap-2">
+                              <button
+                                onClick={() => { initiateOwnerTransfer(transferEmail); setTransferConfirmOpen(false); setTransferEmail(""); }}
+                                className="flex-1 rounded-md bg-destructive text-destructive-foreground px-3 py-1.5 text-xs font-medium hover:bg-destructive/90"
+                              >
+                                Yes, start transfer
+                              </button>
+                              <button
+                                onClick={() => setTransferConfirmOpen(false)}
+                                className="flex-1 rounded-md border px-3 py-1.5 text-xs hover:bg-accent"
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          </div>
+                        )}
                       </div>
-                    </div>
-                  )}
-
-                  {/* Confirmation dialog */}
-                  {transferConfirmOpen && (
-                    <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-3 space-y-3">
-                      <p className="text-sm font-medium text-destructive">Confirm ownership transfer</p>
-                      <p className="text-xs text-muted-foreground">
-                        Transfer to <strong>{transferEmail}</strong>? A 24-hr cooling-off period begins now. You remain Owner until the window expires or you confirm completion. This action can be cancelled during the 24-hr window.
-                      </p>
-                      <div className="flex gap-2">
-                        <button
-                          onClick={() => {
-                            initiateOwnerTransfer(transferEmail);
-                            setTransferConfirmOpen(false);
-                            setTransferEmail("");
-                          }}
-                          className="flex-1 rounded-md bg-destructive text-destructive-foreground px-3 py-2 text-xs font-medium hover:bg-destructive/90"
-                        >
-                          Yes, start transfer
-                        </button>
-                        <button
-                          onClick={() => setTransferConfirmOpen(false)}
-                          className="flex-1 rounded-md border px-3 py-2 text-xs hover:bg-accent"
-                        >
-                          Cancel
-                        </button>
-                      </div>
-                    </div>
+                    </details>
                   )}
                 </div>
               )}
@@ -681,76 +732,111 @@ export default function SettingsPage() {
 
             {/* AI Model Provider Keys */}
             <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide px-1">AI Model Providers</p>
-            {apiKeys.filter((k) => k.modelProvider).map((apiKey) => (
-              <Card key={apiKey.id}>
-                <CardContent className="flex items-center justify-between py-4 gap-4">
-                  <div className="space-y-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <p className="text-sm font-medium">{apiKey.name}</p>
-                      <span className="rounded-full bg-primary/10 text-primary px-2 py-0.5 text-[10px] font-medium">Foundation Model</span>
-                      {apiKey.serverSide && (
-                        <span className="rounded-full bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300 px-2 py-0.5 text-[10px] font-medium">✓ Server env var</span>
-                      )}
+            {apiKeys.filter((k) => k.modelProvider).map((ak) => (
+              <Card key={ak.id}>
+                <CardContent className="py-4 space-y-2">
+                  <div className="flex items-start gap-3 flex-wrap">
+                    <div className="flex-1 min-w-0 space-y-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <p className="text-sm font-medium">{ak.name}</p>
+                        <span className="rounded-full bg-primary/10 text-primary px-2 py-0.5 text-[10px] font-medium">Foundation Model</span>
+                        {ak.serverSide && (
+                          <span className="rounded-full bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300 px-2 py-0.5 text-[10px] font-medium">✓ Server env var</span>
+                        )}
+                        {!ak.serverSide && editableKeys[ak.id] && (
+                          <span className="rounded-full bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300 px-2 py-0.5 text-[10px] font-medium">✓ Saved locally</span>
+                        )}
+                      </div>
+                      <p className="text-xs text-muted-foreground">{ak.description}</p>
                     </div>
-                    <p className="text-xs text-muted-foreground">{apiKey.description}</p>
-                    {apiKey.serverSide ? (
-                      <p className="text-xs text-muted-foreground italic">Configured as Vercel environment variable — not exposed to client</p>
-                    ) : (
-                      <code className="text-xs bg-muted px-2 py-0.5 rounded">
-                        {maskKey(apiKey.key, keyVisibility[apiKey.id])}
-                      </code>
-                    )}
-                    <p className="text-xs text-muted-foreground">Status: {apiKey.lastUsed}</p>
                   </div>
-                  <div className="flex items-center gap-2 shrink-0">
-                    {!apiKey.serverSide && (
-                      <>
-                        <button
-                          onClick={() => toggleKeyVisibility(apiKey.id)}
-                          className="rounded-md border border-input px-3 py-1.5 text-sm hover:bg-accent"
-                        >
-                          {keyVisibility[apiKey.id] ? "Hide" : "Show"}
-                        </button>
-                        <button className="text-sm text-destructive hover:bg-destructive/10 rounded-md px-3 py-1.5">
-                          Rotate
-                        </button>
-                      </>
-                    )}
-                    {apiKey.serverSide && (
-                      <span className="text-xs text-muted-foreground">Manage in Vercel</span>
-                    )}
-                  </div>
+                  {/* Anthropic: show both env-var status and optional client key input */}
+                  {ak.serverSide ? (
+                    <div className="space-y-1.5">
+                      <p className="text-xs text-muted-foreground italic">Server env var active — AI chat will use it automatically.</p>
+                      <details className="group">
+                        <summary className="cursor-pointer text-[11px] text-muted-foreground/70 hover:text-muted-foreground select-none list-none flex items-center gap-1 w-fit">
+                          <span className="group-open:rotate-90 transition-transform inline-block">▶</span>
+                          Override with a personal API key…
+                        </summary>
+                        <div className="mt-2 flex gap-2">
+                          <input
+                            type={keyVisibility[ak.id] ? "text" : "password"}
+                            placeholder="sk-ant-api03-…"
+                            className={inputClass + " flex-1 font-mono text-xs"}
+                            value={editableKeys[ak.id] ?? ""}
+                            onChange={(e) => setEditableKeys((p) => ({ ...p, [ak.id]: e.target.value }))}
+                            autoComplete="off"
+                          />
+                          <button onClick={() => toggleKeyVisibility(ak.id)} className="rounded-md border border-input px-3 py-1.5 text-xs hover:bg-accent shrink-0">
+                            {keyVisibility[ak.id] ? "Hide" : "Show"}
+                          </button>
+                        </div>
+                      </details>
+                    </div>
+                  ) : (
+                    <div className="flex gap-2">
+                      <input
+                        type={keyVisibility[ak.id] ? "text" : "password"}
+                        placeholder={ak.id === "groq" ? "gsk-…" : ak.id === "openai" ? "sk-…" : "API key…"}
+                        className={inputClass + " flex-1 font-mono text-xs"}
+                        value={editableKeys[ak.id] ?? ""}
+                        onChange={(e) => setEditableKeys((p) => ({ ...p, [ak.id]: e.target.value }))}
+                        autoComplete="off"
+                      />
+                      <button onClick={() => toggleKeyVisibility(ak.id)} className="rounded-md border border-input px-3 py-1.5 text-xs hover:bg-accent shrink-0">
+                        {keyVisibility[ak.id] ? "Hide" : "Show"}
+                      </button>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             ))}
 
             {/* Data Source Keys */}
             <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide px-1 pt-2">Data Sources & Services</p>
-            {apiKeys.filter((k) => !k.modelProvider).map((apiKey) => (
-              <Card key={apiKey.id}>
-                <CardContent className="flex items-center justify-between py-4 gap-4">
-                  <div className="space-y-1 min-w-0">
-                    <p className="text-sm font-medium">{apiKey.name}</p>
-                    <p className="text-xs text-muted-foreground">{apiKey.description}</p>
-                    <code className="text-xs bg-muted px-2 py-0.5 rounded">
-                      {maskKey(apiKey.key, keyVisibility[apiKey.id])}
-                    </code>
-                    <p className="text-xs text-muted-foreground">Last used: {apiKey.lastUsed}</p>
+            {apiKeys.filter((k) => !k.modelProvider).map((ak) => (
+              <Card key={ak.id}>
+                <CardContent className="py-4 space-y-2">
+                  <div className="flex-1 min-w-0 space-y-1">
+                    <p className="text-sm font-medium">{ak.name}</p>
+                    <p className="text-xs text-muted-foreground">{ak.description}</p>
+                    {editableKeys[ak.id] && (
+                      <span className="inline-flex rounded-full bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300 px-2 py-0.5 text-[10px] font-medium">✓ Saved locally</span>
+                    )}
                   </div>
-                  <div className="flex items-center gap-2 shrink-0">
-                    <button
-                      onClick={() => toggleKeyVisibility(apiKey.id)}
-                      className="rounded-md border border-input px-3 py-1.5 text-sm hover:bg-accent"
-                    >
-                      {keyVisibility[apiKey.id] ? "Hide" : "Show"}
-                    </button>
-                    <button className="text-sm text-destructive hover:bg-destructive/10 rounded-md px-3 py-1.5">
-                      Regenerate
+                  <div className="flex gap-2">
+                    <input
+                      type={keyVisibility[ak.id] ? "text" : "password"}
+                      placeholder="API key…"
+                      className={inputClass + " flex-1 font-mono text-xs"}
+                      value={editableKeys[ak.id] ?? ""}
+                      onChange={(e) => setEditableKeys((p) => ({ ...p, [ak.id]: e.target.value }))}
+                      autoComplete="off"
+                    />
+                    <button onClick={() => toggleKeyVisibility(ak.id)} className="rounded-md border border-input px-3 py-1.5 text-xs hover:bg-accent shrink-0">
+                      {keyVisibility[ak.id] ? "Hide" : "Show"}
                     </button>
                   </div>
                 </CardContent>
               </Card>
             ))}
+
+            {/* Save button */}
+            <div className="flex items-center justify-between pt-2">
+              {apiKeySaved && (
+                <span className="text-sm text-green-700 dark:text-green-400 font-medium">✓ API keys saved to browser storage</span>
+              )}
+              {!apiKeySaved && (
+                <span className="text-xs text-muted-foreground italic">Keys are stored in your browser — never sent to our servers unless you use them in an API call.</span>
+              )}
+              <button
+                onClick={saveApiKeys}
+                className="rounded-md bg-primary text-primary-foreground px-5 py-2 text-sm font-medium hover:bg-primary/90 shrink-0"
+              >
+                Save API Keys
+              </button>
+            </div>
           </div>
         </TabsContent>
 
@@ -775,7 +861,13 @@ export default function SettingsPage() {
                   checked={darkMode}
                   onCheckedChange={(checked) => {
                     setDarkMode(checked);
-                    document.documentElement.classList.toggle("dark");
+                    if (checked) {
+                      document.documentElement.classList.add("dark");
+                      localStorage.setItem("sdd-theme", "dark");
+                    } else {
+                      document.documentElement.classList.remove("dark");
+                      localStorage.setItem("sdd-theme", "light");
+                    }
                   }}
                 />
               </div>

@@ -238,6 +238,13 @@ export default function DesignPage() {
     }));
 
     try {
+      // Read saved API key from localStorage (set in Settings → API Keys)
+      let clientApiKey: string | undefined;
+      try {
+        const stored = localStorage.getItem("sdd-api-keys");
+        if (stored) clientApiKey = (JSON.parse(stored) as Record<string, string>).anthropic || undefined;
+      } catch { /* ignore */ }
+
       const res = await fetch("/api/assistant", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -245,6 +252,7 @@ export default function DesignPage() {
           question: text,
           pageContext: `Design with AI — DMBT Cycle — selected model: ${selectedModel}`,
           history,
+          ...(clientApiKey ? { apiKey: clientApiKey } : {}),
         }),
       });
       const data = await res.json() as { answer?: string; error?: string };
