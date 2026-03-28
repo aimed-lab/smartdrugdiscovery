@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
   Card,
   CardContent,
@@ -792,13 +792,38 @@ function CreateAgentSection() {
 interface OfficeTool {
   id: string;
   name: string;
-  logo: string;          // emoji or initials
+  logo: string;
   logoColor: string;
+  oauthColor: string;       // hex color for OAuth popup branding
   description: string;
-  permissions: string[]; // minimal permissions requested
+  permissions: string[];
   category: "Productivity" | "Storage" | "Communication" | "Automation" | "Media";
-  connected: boolean;
   authType: "oauth" | "api-key" | "embed";
+  apiKeyPlaceholder?: string;
+  apiKeyHint?: string;
+}
+
+type ConnectionState = "disconnected" | "connecting" | "connected" | "testing" | "error";
+
+interface ConnectionInfo {
+  state: ConnectionState;
+  account?: string;          // email/username shown after connect
+  testedAt?: string;         // last successful test timestamp
+  testError?: string;        // last test error message
+  apiKey?: string;           // stored api key value (api-key auth only)
+}
+
+const STORAGE_KEY = "sdd-office-connections";
+
+function loadConnections(): Record<string, ConnectionInfo> {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch { return {}; }
+}
+
+function saveConnections(data: Record<string, ConnectionInfo>) {
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); } catch { /* ignore */ }
 }
 
 const officeTools: OfficeTool[] = [
@@ -807,10 +832,10 @@ const officeTools: OfficeTool[] = [
     name: "Notion",
     logo: "N",
     logoColor: "bg-gray-800 text-white",
+    oauthColor: "#000000",
     description: "Link Notion workspaces to sync project notes, SOPs, and meeting summaries",
     permissions: ["Read/write selected pages only", "No bulk workspace access", "No private pages"],
     category: "Productivity",
-    connected: false,
     authType: "oauth",
   },
   {
@@ -818,10 +843,10 @@ const officeTools: OfficeTool[] = [
     name: "Google Drive",
     logo: "GD",
     logoColor: "bg-blue-500 text-white",
+    oauthColor: "#1a73e8",
     description: "Access Google Drive files you explicitly share for import into projects",
     permissions: ["Access only files you select", "No browsing full Drive", "No deletion rights"],
     category: "Storage",
-    connected: false,
     authType: "oauth",
   },
   {
@@ -829,10 +854,10 @@ const officeTools: OfficeTool[] = [
     name: "OneDrive",
     logo: "OD",
     logoColor: "bg-sky-500 text-white",
+    oauthColor: "#0078d4",
     description: "Import files from OneDrive and sync reports back to selected folders",
     permissions: ["Read/write selected folders only", "No account-level access", "No email access"],
     category: "Storage",
-    connected: false,
     authType: "oauth",
   },
   {
@@ -840,10 +865,10 @@ const officeTools: OfficeTool[] = [
     name: "BOX",
     logo: "B",
     logoColor: "bg-blue-700 text-white",
+    oauthColor: "#0061d5",
     description: "Access BOX-hosted documents and compound libraries for regulated storage",
     permissions: ["Selected folder access only", "Read-only by default", "Audit log preserved"],
     category: "Storage",
-    connected: false,
     authType: "oauth",
   },
   {
@@ -851,10 +876,10 @@ const officeTools: OfficeTool[] = [
     name: "Gmail",
     logo: "G",
     logoColor: "bg-red-500 text-white",
+    oauthColor: "#ea4335",
     description: "Send platform notifications and experiment summaries via Gmail",
     permissions: ["Send-only (no read access)", "No inbox scanning", "Unsubscribe anytime"],
     category: "Communication",
-    connected: false,
     authType: "oauth",
   },
   {
@@ -862,10 +887,10 @@ const officeTools: OfficeTool[] = [
     name: "Google Calendar",
     logo: "Cal",
     logoColor: "bg-green-600 text-white",
+    oauthColor: "#1e8e3e",
     description: "Schedule experiment runs, milestone reviews, and team syncs",
     permissions: ["Read free/busy only", "Write new events only", "No existing event access"],
     category: "Productivity",
-    connected: false,
     authType: "oauth",
   },
   {
@@ -873,21 +898,23 @@ const officeTools: OfficeTool[] = [
     name: "Zapier",
     logo: "Z",
     logoColor: "bg-orange-500 text-white",
+    oauthColor: "#ff4a00",
     description: "Trigger automated workflows when experiments complete or milestones are hit",
     permissions: ["Outbound webhooks only", "No inbound data stored", "Per-trigger authorization"],
     category: "Automation",
-    connected: false,
     authType: "api-key",
+    apiKeyPlaceholder: "zap_xxxxxxxxxxxxxxxxxxxx",
+    apiKeyHint: "Found in Zapier → Account → API Key",
   },
   {
     id: "readai",
     name: "read.ai",
     logo: "R",
     logoColor: "bg-purple-600 text-white",
+    oauthColor: "#7c3aed",
     description: "Import meeting intelligence from lab meetings to auto-generate action items",
     permissions: ["Meeting summaries only", "No audio/video stored", "Speaker labels anonymized"],
     category: "Productivity",
-    connected: false,
     authType: "oauth",
   },
   {
@@ -895,10 +922,10 @@ const officeTools: OfficeTool[] = [
     name: "YouTube",
     logo: "YT",
     logoColor: "bg-red-600 text-white",
+    oauthColor: "#ff0000",
     description: "Embed scientific talks, assay protocols, and conference recordings in projects",
     permissions: ["Public video embed only", "No account login required", "No viewing history"],
     category: "Media",
-    connected: false,
     authType: "embed",
   },
 ];
@@ -911,25 +938,139 @@ const categoryColors: Record<OfficeTool["category"], string> = {
   Media:         "bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300",
 };
 
-const authLabels: Record<OfficeTool["authType"], string> = {
-  oauth:   "OAuth 2.0",
-  "api-key": "API Key",
-  embed:   "No auth",
-};
-
 function OfficeToolsSection() {
-  const [connected, setConnected] = useState<Set<string>>(new Set());
-  const [catFilter, setCatFilter] = useState<string>("All");
+  const [connections, setConnections] = useState<Record<string, ConnectionInfo>>({});
+  const [catFilter,   setCatFilter]   = useState<string>("All");
+  const [apiInputs,   setApiInputs]   = useState<Record<string, string>>({});
+  const [showApiKey,  setShowApiKey]  = useState<Record<string, boolean>>({});
+
+  // Load persisted connections on mount
+  useEffect(() => { setConnections(loadConnections()); }, []);
+
+  // Listen for OAuth popup messages
+  const handleMessage = useCallback((e: MessageEvent) => {
+    if (e.origin !== window.location.origin) return;
+    const { type, service, account } = e.data as { type: string; service: string; account: string };
+    if (type === "oauth-complete" && service) {
+      setConnections((prev) => {
+        const next: Record<string, ConnectionInfo> = {
+          ...prev,
+          [service]: { state: "connected" as ConnectionState, account: account ?? "demo@smartdrugdiscovery.ai" },
+        };
+        saveConnections(next);
+        return next;
+      });
+    }
+    if (type === "oauth-denied" && service) {
+      setConnections((prev) => {
+        const next: Record<string, ConnectionInfo> = { ...prev, [service]: { state: "disconnected" as ConnectionState } };
+        saveConnections(next);
+        return next;
+      });
+    }
+  }, []);
+
+  useEffect(() => {
+    window.addEventListener("message", handleMessage);
+    return () => window.removeEventListener("message", handleMessage);
+  }, [handleMessage]);
+
+  // Open OAuth popup
+  function openOAuthPopup(tool: OfficeTool) {
+    setConnections((prev) => {
+      const next: Record<string, ConnectionInfo> = { ...prev, [tool.id]: { state: "connecting" as ConnectionState } };
+      saveConnections(next);
+      return next;
+    });
+    const params = new URLSearchParams({
+      service: tool.id,
+      name:    tool.name,
+      color:   tool.oauthColor,
+      logo:    tool.logo,
+    });
+    const popup = window.open(
+      `/api/oauth-popup?${params}`,
+      `oauth-${tool.id}`,
+      "width=540,height=640,left=200,top=100,toolbar=no,menubar=no,scrollbars=yes,resizable=yes"
+    );
+    // Fallback: if popup closed without message, reset to disconnected
+    const timer = setInterval(() => {
+      if (popup?.closed) {
+        clearInterval(timer);
+        setConnections((prev) => {
+          if (prev[tool.id]?.state === "connecting") {
+            const next: Record<string, ConnectionInfo> = { ...prev, [tool.id]: { state: "disconnected" as ConnectionState } };
+            saveConnections(next);
+            return next;
+          }
+          return prev;
+        });
+      }
+    }, 500);
+  }
+
+  // Connect API-key tool
+  function connectApiKey(tool: OfficeTool) {
+    const key = (apiInputs[tool.id] ?? "").trim();
+    if (!key) return;
+    setConnections((prev) => {
+      const next: Record<string, ConnectionInfo> = { ...prev, [tool.id]: { state: "connected" as ConnectionState, account: "API key set", apiKey: key } };
+      saveConnections(next);
+      return next;
+    });
+  }
+
+  // Enable embed tool
+  function enableEmbed(tool: OfficeTool) {
+    setConnections((prev) => {
+      const next: Record<string, ConnectionInfo> = { ...prev, [tool.id]: { state: "connected" as ConnectionState, account: "Embed enabled" } };
+      saveConnections(next);
+      return next;
+    });
+  }
+
+  // Test connection
+  async function testConnection(toolId: string) {
+    setConnections((prev) => ({ ...prev, [toolId]: { ...prev[toolId], state: "testing" as ConnectionState } }));
+    await new Promise((r) => setTimeout(r, 1400));
+    // Simulate: 90 % success
+    const ok = Math.random() > 0.1;
+    setConnections((prev) => {
+      const next: Record<string, ConnectionInfo> = {
+        ...prev,
+        [toolId]: {
+          ...prev[toolId],
+          state:     (ok ? "connected" : "error") as ConnectionState,
+          testedAt:  ok ? new Date().toISOString() : prev[toolId]?.testedAt,
+          testError: ok ? undefined : "Connection timed out — check your credentials.",
+        },
+      };
+      saveConnections(next);
+      return next;
+    });
+  }
+
+  // Disconnect
+  function disconnect(toolId: string) {
+    setConnections((prev) => {
+      const next = { ...prev };
+      delete next[toolId];
+      saveConnections(next);
+      return next;
+    });
+    setApiInputs((prev) => { const n = { ...prev }; delete n[toolId]; return n; });
+  }
 
   const categories = ["All", "Productivity", "Storage", "Communication", "Automation", "Media"];
-  const filtered = catFilter === "All" ? officeTools : officeTools.filter(t => t.category === catFilter);
+  const filtered   = catFilter === "All" ? officeTools : officeTools.filter((t) => t.category === catFilter);
 
   return (
     <div className="space-y-6">
-      {/* Privacy notice banner */}
+      {/* Privacy notice */}
       <div className="rounded-lg border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-950/20 px-4 py-3 text-xs text-blue-800 dark:text-blue-300">
         <span className="font-semibold">Minimal permissions: </span>
-        Each integration requests only the access strictly required for its function. File contents are processed transiently and never stored. See <a href="/settings?tab=privacy" className="underline underline-offset-2">Privacy & Legal</a> for full details.
+        Each integration requests only the access strictly required for its function. File contents are processed transiently and never stored. See{" "}
+        <a href="/settings?tab=privacy" className="underline underline-offset-2">Privacy &amp; Legal</a> for full details.
       </div>
 
       {/* Category filter */}
@@ -940,7 +1081,9 @@ function OfficeToolsSection() {
             onClick={() => setCatFilter(cat)}
             className={cn(
               "rounded-full px-3 py-1.5 text-sm font-medium transition-colors",
-              catFilter === cat ? "bg-primary text-primary-foreground" : "bg-secondary text-secondary-foreground hover:bg-secondary/80"
+              catFilter === cat
+                ? "bg-primary text-primary-foreground"
+                : "bg-secondary text-secondary-foreground hover:bg-secondary/80"
             )}
           >
             {cat}
@@ -951,12 +1094,23 @@ function OfficeToolsSection() {
       {/* Tool grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 items-stretch">
         {filtered.map((tool) => {
-          const isConnected = connected.has(tool.id);
+          const conn       = connections[tool.id];
+          const isConn     = conn?.state === "connected";
+          const isTesting  = conn?.state === "testing";
+          const isConn_g   = conn?.state === "connecting";
+          const hasError   = conn?.state === "error";
+
           return (
-            <Card key={tool.id} className={cn("flex flex-col", isConnected && "border-green-200 dark:border-green-800")}>
+            <Card
+              key={tool.id}
+              className={cn(
+                "flex flex-col transition-colors",
+                isConn  && "border-green-300 dark:border-green-700",
+                hasError && "border-red-300 dark:border-red-700"
+              )}
+            >
               <CardHeader className="pb-3">
                 <div className="flex items-start gap-3">
-                  {/* Logo */}
                   <div className={cn("h-10 w-10 rounded-lg flex items-center justify-center text-xs font-bold shrink-0", tool.logoColor)}>
                     {tool.logo}
                   </div>
@@ -966,8 +1120,16 @@ function OfficeToolsSection() {
                       <span className={cn("rounded-full px-2 py-0.5 text-[10px] font-medium shrink-0", categoryColors[tool.category])}>
                         {tool.category}
                       </span>
+                      {isConn && (
+                        <span className="rounded-full px-2 py-0.5 text-[10px] font-medium bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300 flex items-center gap-1">
+                          <span className="h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse" />
+                          Connected
+                        </span>
+                      )}
                     </div>
-                    <span className="text-[10px] text-muted-foreground">{authLabels[tool.authType]}</span>
+                    <span className="text-[10px] text-muted-foreground">
+                      {tool.authType === "oauth" ? "OAuth 2.0" : tool.authType === "api-key" ? "API Key" : "Embed"}
+                    </span>
                   </div>
                 </div>
                 <CardDescription className="text-xs line-clamp-2 mt-1">{tool.description}</CardDescription>
@@ -987,26 +1149,122 @@ function OfficeToolsSection() {
                   </ul>
                 </div>
 
-                {/* Connect button */}
-                <button
-                  onClick={() => setConnected(prev => {
-                    const n = new Set(prev);
-                    n.has(tool.id) ? n.delete(tool.id) : n.add(tool.id);
-                    return n;
-                  })}
-                  className={cn(
-                    "w-full mt-auto rounded-md px-4 py-2 text-sm font-medium transition-colors flex items-center justify-center gap-2",
-                    isConnected
-                      ? "border border-green-500 text-green-700 bg-green-50 dark:bg-green-950/20"
-                      : "bg-primary text-primary-foreground hover:bg-primary/90"
+                {/* Connected account badge */}
+                {isConn && conn?.account && (
+                  <p className="text-[11px] text-muted-foreground truncate">
+                    <span className="font-medium">Account:</span> {conn.account}
+                  </p>
+                )}
+
+                {/* Last test result */}
+                {conn?.testedAt && !hasError && (
+                  <p className="text-[11px] text-green-600 dark:text-green-400">
+                    ✓ Last tested {new Date(conn.testedAt).toLocaleTimeString()}
+                  </p>
+                )}
+                {hasError && conn?.testError && (
+                  <p className="text-[11px] text-red-600 dark:text-red-400 flex items-start gap-1">
+                    <span>⚠</span> {conn.testError}
+                  </p>
+                )}
+
+                {/* API key input — shown before connecting for api-key tools */}
+                {tool.authType === "api-key" && !isConn && (
+                  <div className="space-y-1.5">
+                    <div className="relative flex items-center">
+                      <input
+                        type={showApiKey[tool.id] ? "text" : "password"}
+                        value={apiInputs[tool.id] ?? ""}
+                        onChange={(e) => setApiInputs((prev) => ({ ...prev, [tool.id]: e.target.value }))}
+                        placeholder={tool.apiKeyPlaceholder ?? "Enter API key…"}
+                        className="w-full rounded-md border bg-background px-3 py-1.5 text-xs pr-16 focus:outline-none focus:ring-1 focus:ring-ring"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowApiKey((prev) => ({ ...prev, [tool.id]: !prev[tool.id] }))}
+                        className="absolute right-2 text-[10px] text-muted-foreground hover:text-foreground"
+                      >
+                        {showApiKey[tool.id] ? "Hide" : "Show"}
+                      </button>
+                    </div>
+                    {tool.apiKeyHint && (
+                      <p className="text-[10px] text-muted-foreground">{tool.apiKeyHint}</p>
+                    )}
+                  </div>
+                )}
+
+                {/* Action buttons */}
+                <div className="mt-auto space-y-2">
+                  {!isConn && !isConn_g && (
+                    <button
+                      onClick={() => {
+                        if (tool.authType === "oauth")   openOAuthPopup(tool);
+                        else if (tool.authType === "api-key") connectApiKey(tool);
+                        else enableEmbed(tool);
+                      }}
+                      disabled={tool.authType === "api-key" && !(apiInputs[tool.id]?.trim())}
+                      className="w-full rounded-md px-4 py-2 text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                    >
+                      {tool.authType === "oauth"    ? "Connect via OAuth 2.0" :
+                       tool.authType === "api-key"  ? "Save & Connect" :
+                                                      "Enable Embed"}
+                    </button>
                   )}
-                >
-                  {isConnected ? (
-                    <><span className="h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse" /> Connected</>
-                  ) : (
-                    tool.authType === "embed" ? "Enable Embed" : `Connect via ${authLabels[tool.authType]}`
+
+                  {isConn_g && (
+                    <button disabled className="w-full rounded-md px-4 py-2 text-sm font-medium bg-primary/60 text-primary-foreground cursor-not-allowed flex items-center justify-center gap-2">
+                      <svg className="h-3.5 w-3.5 animate-spin" viewBox="0 0 24 24" fill="none">
+                        <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" className="opacity-25"/>
+                        <path fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" className="opacity-75"/>
+                      </svg>
+                      Connecting…
+                    </button>
                   )}
-                </button>
+
+                  {isConn && (
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => testConnection(tool.id)}
+                        disabled={isTesting}
+                        className="flex-1 rounded-md px-3 py-1.5 text-xs font-medium border border-input bg-background hover:bg-accent transition-colors disabled:opacity-50 flex items-center justify-center gap-1.5"
+                      >
+                        {isTesting ? (
+                          <>
+                            <svg className="h-3 w-3 animate-spin" viewBox="0 0 24 24" fill="none">
+                              <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" className="opacity-25"/>
+                              <path fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" className="opacity-75"/>
+                            </svg>
+                            Testing…
+                          </>
+                        ) : "Test Connection"}
+                      </button>
+                      <button
+                        onClick={() => disconnect(tool.id)}
+                        title="Disconnect"
+                        className="rounded-md px-3 py-1.5 text-xs font-medium border border-red-200 text-red-600 hover:bg-red-50 dark:border-red-800 dark:text-red-400 dark:hover:bg-red-950/20 transition-colors"
+                      >
+                        Disconnect
+                      </button>
+                    </div>
+                  )}
+
+                  {hasError && (
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => testConnection(tool.id)}
+                        className="flex-1 rounded-md px-3 py-1.5 text-xs font-medium border border-orange-300 text-orange-700 bg-orange-50 hover:bg-orange-100 dark:border-orange-700 dark:text-orange-300 dark:bg-orange-950/20 transition-colors"
+                      >
+                        Retry Test
+                      </button>
+                      <button
+                        onClick={() => disconnect(tool.id)}
+                        className="rounded-md px-3 py-1.5 text-xs font-medium border border-red-200 text-red-600 hover:bg-red-50 dark:border-red-800 dark:text-red-400 transition-colors"
+                      >
+                        Disconnect
+                      </button>
+                    </div>
+                  )}
+                </div>
               </CardContent>
             </Card>
           );
