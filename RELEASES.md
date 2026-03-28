@@ -5,6 +5,42 @@ Tags follow `v1.xxx` in git. Stable releases are marked ⭐.
 
 ---
 
+## ⭐ v1.003 — Mobile Admin Agent Console
+**Date:** 2026-03-28
+**Tag:** `v1.003`
+**Status:** Stable
+
+### New Features
+- **Admin → 🤖 Agent tab** — full mobile-friendly development console:
+  - **Issue Queue** — shows open GitHub Issues (label: `feedback`) + local `feedback-log.json`, sorted by priority
+  - **File Selector** — pre-populated with key source files; add custom paths
+  - **Analyze** — sends issue + selected files to Claude (claude-sonnet-4-6) via Anthropic API; returns root-cause analysis + proposed search/replace diffs
+  - **Diff Review** — collapsible before/after code blocks (red = remove, green = add)
+  - **Approve & Deploy** — commits each change to GitHub via Contents API → Vercel auto-deploys in ~60 seconds; closes the GitHub issue automatically
+- **New API routes:**
+  - `GET /api/admin/issues` — merged GitHub Issues + local log, sorted by priority
+  - `POST /api/admin/analyze` — Claude analysis endpoint (60s timeout)
+  - `POST /api/admin/commit` — GitHub file commit endpoint
+
+### Configuration Required
+Add to `.env` (or Vercel environment variables):
+```
+ANTHROPIC_API_KEY=sk-ant-...
+GITHUB_TOKEN=ghp_...
+GITHUB_OWNER=aimed-lab
+GITHUB_REPO=smartdrugdiscovery
+```
+
+### Mobile Workflow
+1. Open `studio.smartdrugdiscovery.org/admin` on phone
+2. Tap **🤖 Agent** tab
+3. Select an issue from the queue
+4. Check relevant files → **Analyze with Claude**
+5. Review diff → **Approve & Deploy**
+6. Production updates in ~60 seconds — no laptop needed
+
+---
+
 ## v1.002 — Sidebar Label & Tagline Polish
 **Date:** 2026-03-28
 **Tag:** `v1.002`

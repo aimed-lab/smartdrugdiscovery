@@ -1,6 +1,8 @@
 "use client";
 
+import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { AgentConsole } from "@/components/agent-console";
 import {
   BarChart,
   Bar,
@@ -45,14 +47,33 @@ const activityTrend = [
 const COLORS = ["#3b82f6", "#8b5cf6", "#06b6d4", "#f59e0b", "#ef4444"];
 
 export default function Dashboard() {
+  const [tab, setTab] = useState<"dashboard" | "agent">("dashboard");
+
   return (
-    <div className="p-8 space-y-8">
-      <div>
-        <h1 className="text-3xl font-bold">Admin Dashboard</h1>
-        <p className="text-muted-foreground mt-1">
-          Platform administration and pipeline overview
-        </p>
+    <div className="p-4 md:p-8 space-y-6">
+      <div className="flex items-start justify-between gap-4 flex-wrap">
+        <div>
+          <h1 className="text-3xl font-bold">Admin</h1>
+          <p className="text-muted-foreground mt-1">Platform administration and pipeline overview</p>
+        </div>
+        <div className="flex rounded-lg border overflow-hidden text-sm font-medium">
+          <button
+            onClick={() => setTab("dashboard")}
+            className={`px-4 py-2 transition-colors ${tab === "dashboard" ? "bg-primary text-primary-foreground" : "hover:bg-accent text-muted-foreground"}`}>
+            Dashboard
+          </button>
+          <button
+            onClick={() => setTab("agent")}
+            className={`px-4 py-2 transition-colors border-l ${tab === "agent" ? "bg-primary text-primary-foreground" : "hover:bg-accent text-muted-foreground"}`}>
+            🤖 Agent
+          </button>
+        </div>
       </div>
+
+      {tab === "agent" ? (
+        <AgentConsole />
+      ) : (
+      <div className="space-y-8">
 
       {/* Stats cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -184,6 +205,8 @@ export default function Dashboard() {
           </div>
         </CardContent>
       </Card>
+      </div>
+      )}
     </div>
   );
 }
