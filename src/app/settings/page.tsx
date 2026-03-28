@@ -1,12 +1,14 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
 import { useAuth } from "@/lib/auth-context";
 import { PLATFORM_CONFIG } from "@/lib/platform-config";
+import { RoleAvatar } from "@/components/role-avatar";
+import { ROLE_META } from "@/lib/roles";
 
 export default function SettingsPage() {
   const { user, updateUser } = useAuth();
@@ -51,6 +53,47 @@ export default function SettingsPage() {
       });
     }
   }, [user]);
+
+  // Avatar editor
+  const [emojiInput, setEmojiInput] = useState("");
+  const photoInputRef = useRef<HTMLInputElement>(null);
+
+  function handlePhotoUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const dataUrl = ev.target?.result as string;
+      // Resize to max 200×200 JPEG using canvas
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement("canvas");
+        const size = Math.min(img.width, img.height, 200);
+        canvas.width = size; canvas.height = size;
+        const ctx = canvas.getContext("2d")!;
+        const sx = (img.width  - size) / 2;
+        const sy = (img.height - size) / 2;
+        ctx.drawImage(img, sx, sy, size, size, 0, 0, size, size);
+        updateUser({ avatarType: "photo", avatarPhoto: canvas.toDataURL("image/jpeg", 0.85) });
+      };
+      img.src = dataUrl;
+    };
+    reader.readAsDataURL(file);
+    e.target.value = "";
+  }
+
+  function applyEmoji() {
+    const em = Array.from(emojiInput).find(c => c.trim()) ?? "";
+    if (!em) return;
+    updateUser({ avatar: em, avatarType: "emoji", avatarPhoto: undefined });
+    setEmojiInput("");
+  }
+
+  function resetToInitials() {
+    if (!user) return;
+    const initials = user.name.split(" ").filter(Boolean).map(w => w[0]).join("").slice(0, 2).toUpperCase();
+    updateUser({ avatar: initials, avatarType: "initials", avatarPhoto: undefined });
+  }
 
   const [keyVisibility, setKeyVisibility] = useState<Record<string, boolean>>({
     anthropic: false,
@@ -185,14 +228,81 @@ export default function SettingsPage() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
-              <div className="flex items-center gap-6">
-                <div className="h-20 w-20 rounded-full bg-primary flex items-center justify-center text-primary-foreground text-2xl font-bold">
-                  {user?.avatar || "??"}
-                </div>
-                <div>
+              {/* Avatar display + editor */}
+              <div className="flex flex-wrap items-start gap-6">
+                {/* Large avatar — uses same RoleAvatar as sidebar */}
+                {user && (
+                  <RoleAvatar user={user} size="lg" onClick={() => photoInputRef.current?.click()} title="Click to upload photo" />
+                )}
+                <div className="flex-1 min-w-0">
                   <p className="text-lg font-semibold">{profile.name}</p>
-                  <p className="text-sm text-muted-foreground">{profile.role}</p>
+                  <p className="text-sm text-muted-foreground mb-3">{profile.role}</p>
+
+                  {/* Role badge */}
+                  {user && (
+                    <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${ROLE_META[user.role]?.color ?? ""}`}>
+                      {user.role}
+                    </span>
+                  )}
                 </div>
+              </div>
+
+              {/* Avatar customization */}
+              <div className="rounded-lg border bg-muted/30 p-4 space-y-3">
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Customize Avatar</p>
+                <div className="flex flex-wrap gap-3 items-end">
+                  {/* Photo upload */}
+                  <div className="space-y-1">
+                    <p className="text-xs text-muted-foreground">Photo</p>
+                    <button
+                      type="button"
+                      onClick={() => photoInputRef.current?.click()}
+                      className="rounded-md border border-input px-3 py-1.5 text-xs hover:bg-accent"
+                    >
+                      Upload photo
+                    </button>
+                    <input ref={photoInputRef} type="file" accept="image/*" className="hidden" onChange={handlePhotoUpload} />
+                  </div>
+
+                  {/* Emoji input */}
+                  <div className="space-y-1">
+                    <p className="text-xs text-muted-foreground">Emoji</p>
+                    <div className="flex gap-1.5">
+                      <input
+                        type="text"
+                        placeholder="🧬"
+                        className="w-16 rounded-md border border-input bg-background px-2 py-1.5 text-sm text-center focus:outline-none focus:ring-2 focus:ring-ring"
+                        value={emojiInput}
+                        onChange={(e) => setEmojiInput(e.target.value)}
+                        onKeyDown={(e) => e.key === "Enter" && applyEmoji()}
+                        maxLength={4}
+                      />
+                      <button
+                        type="button"
+                        onClick={applyEmoji}
+                        disabled={!emojiInput.trim()}
+                        className="rounded-md border border-input px-3 py-1.5 text-xs hover:bg-accent disabled:opacity-40"
+                      >
+                        Use
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Reset to initials */}
+                  <div className="space-y-1">
+                    <p className="text-xs text-muted-foreground">Reset</p>
+                    <button
+                      type="button"
+                      onClick={resetToInitials}
+                      className="rounded-md border border-input px-3 py-1.5 text-xs hover:bg-accent"
+                    >
+                      Use initials
+                    </button>
+                  </div>
+                </div>
+                <p className="text-[11px] text-muted-foreground/70">
+                  Role color ({user?.role}) is shown as solid background (initials) or glow ring (emoji/photo) — synchronized with the sidebar.
+                </p>
               </div>
 
               <Separator />
@@ -384,12 +494,17 @@ export default function SettingsPage() {
               <div className="flex justify-end">
                 <button
                   onClick={() => {
+                    // Only regenerate initials if user hasn't set emoji/photo
+                    const avatarType = user?.avatarType ?? "initials";
+                    const newAvatar = avatarType === "initials"
+                      ? profile.name.split(" ").filter(Boolean).map(w => w[0]).join("").slice(0, 2).toUpperCase()
+                      : user?.avatar ?? "";
                     updateUser({
                       name: profile.name,
                       email: profile.email,
                       title: profile.role,
                       institution: profile.org,
-                      avatar: profile.name.split(" ").filter(Boolean).map(w => w[0]).join("").slice(0, 2).toUpperCase(),
+                      avatar: newAvatar,
                     });
                   }}
                   className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"

@@ -8,7 +8,12 @@ export interface User {
   email: string;
   title: string;
   institution: string;
+  /** Initials string (e.g. "JC"), single emoji (e.g. "🧬"), or ignored when avatarType="photo" */
   avatar: string;
+  /** How to render the avatar — defaults to "initials" */
+  avatarType?: "initials" | "emoji" | "photo";
+  /** Base64 data URL for photo avatar (set when avatarType="photo") */
+  avatarPhoto?: string;
   role: AppRole;
 }
 

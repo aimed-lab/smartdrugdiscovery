@@ -9,16 +9,9 @@ import {
   Sparkles, Package, Puzzle, FolderOpen, BrainCircuit,
 } from "lucide-react";
 import { FeedbackWidget } from "@/components/feedback-widget";
-import { type AppRole } from "@/lib/roles";
+import { RoleAvatar } from "@/components/role-avatar";
 import { PLATFORM_CONFIG } from "@/lib/platform-config";
-
-// Role → avatar background color (solid, for the initials circle)
-const roleAvatarColor: Record<AppRole, string> = {
-  Owner:     "bg-orange-500 text-white",
-  Admin:     "bg-red-500 text-white",
-  Developer: "bg-blue-500 text-white",
-  User:      "bg-gray-400 text-white",
-};
+import { type AppRole } from "@/lib/roles";
 
 export function AuthGate({ children }: { children: React.ReactNode }) {
   return (
@@ -153,7 +146,7 @@ function Sidebar({
   mobileOpen,
   onClose,
 }: {
-  user: { name: string; email: string; avatar: string; title?: string; role?: AppRole } | null;
+  user: { name: string; email: string; avatar: string; title?: string; role: AppRole; avatarType?: "initials" | "emoji" | "photo"; avatarPhoto?: string } | null;
   onLogout: () => void;
   mobileOpen: boolean;
   onClose: () => void;
@@ -301,18 +294,14 @@ function Sidebar({
         {user && (
           <div className="px-3 py-2.5">
             <div className="flex items-center gap-2.5">
-              {/* Avatar — color encodes role; click → Settings/Profile */}
-              <a
+              {/* Avatar — role color synced via RoleAvatar; click → Settings */}
+              <RoleAvatar
+                user={user}
+                size="sm"
                 href="/settings"
                 onClick={onClose}
                 title={`Role: ${user.role} — click to manage`}
-                className={cn(
-                  "h-8 w-8 rounded-full flex items-center justify-center text-xs font-semibold shrink-0 transition-opacity hover:opacity-80",
-                  roleAvatarColor[user.role as AppRole] ?? "bg-gray-400 text-white"
-                )}
-              >
-                {user.avatar}
-              </a>
+              />
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium truncate">{user.name}</p>
                 <p className="text-[11px] text-muted-foreground truncate">{user.title || user.email}</p>

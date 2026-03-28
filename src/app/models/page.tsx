@@ -415,7 +415,7 @@ export default function ModelsPage() {
             {filtered.map((model) => {
               const sc = statusConfig[model.status];
               return (
-                <Card key={model.id} className={cn(model.status === "connected" && "border-green-200 dark:border-green-800")}>
+                <Card key={model.id} className={cn("flex flex-col", model.status === "connected" && "border-green-200 dark:border-green-800")}>
                   <CardHeader className="pb-2">
                     <div className="flex items-start justify-between gap-2">
                       <div className="flex-1 min-w-0">
@@ -438,7 +438,7 @@ export default function ModelsPage() {
                     </div>
                   </CardHeader>
 
-                  <CardContent className="space-y-3">
+                  <CardContent className="flex flex-col flex-1 space-y-3">
                     <p className="text-xs text-muted-foreground leading-relaxed">{model.description}</p>
 
                     <div className="flex flex-wrap gap-1">
@@ -477,8 +477,8 @@ export default function ModelsPage() {
                       </div>
                     )}
 
-                    {/* Actions */}
-                    <div className="pt-1">
+                    {/* Actions — mt-auto pins button to card bottom regardless of content height */}
+                    <div className="mt-auto pt-1">
                       {model.status === "connected" && (
                         <div className="flex gap-2">
                           <button
