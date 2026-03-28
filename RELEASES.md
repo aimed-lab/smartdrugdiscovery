@@ -5,6 +5,17 @@ Tags follow `v1.xxx` in git. Stable releases are marked ⭐.
 
 ---
 
+## v1.002 — Sidebar Label & Tagline Polish
+**Date:** 2026-03-28
+**Tag:** `v1.002`
+**Status:** Stable
+
+### Changes
+- Nav group labels shortened to single words: **Biology, Pharmacology, Clinical, Regulation** (eliminates two-line wrapping on mobile)
+- Tagline changed from "FASTER · CHEAPER · PERSONALIZED" to **"AIDD 2.0 · OSDD2"** — fits on one line, ties to platform identity
+
+---
+
 ## ⭐ v1.001 — Mobile Responsive + Feedback System
 **Date:** 2026-03-28
 **Tag:** `v1.001`
