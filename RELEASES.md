@@ -5,6 +5,41 @@ Tags follow `v1.xxx` in git. Stable releases are marked ⭐.
 
 ---
 
+## v1.007 — Enterprise RBAC, Plugin Test Modal, Models Leaderboard
+**Date:** 2026-03-28
+**Tag:** `v1.007`
+**Status:** Stable
+
+### New Features
+- **Enterprise Role-Based Access Control** — GitHub-style roles (Owner → Admin → Developer → User):
+  - New `src/lib/roles.ts` — `AppRole` type, `ROLE_ORDER`, `hasRole()`, `can()`, `ROLE_PERMISSIONS` map, `ROLE_META` badges
+  - Dr. Jake Chen seed account promoted to `"Owner"` role
+  - **RoleSwitcher** in sidebar footer — demo dropdown lets Owner impersonate any role to verify gated UI
+  - User profile row shows colored role badge (orange=Owner, red=Admin, blue=Developer, gray=User)
+- **Plugins page — role-gated UI**:
+  - **Developer+**: connected tool list, Integration Guide accordion (5-step MCP setup), Uninstall button
+  - **User**: simplified "Connected and ready" view; Install Free / Connect with API Key buttons only
+  - Yellow info bar for non-Developer users explaining how to request access
+  - Role banner in page header reflecting current user's access level
+- **Plugin Test Modal** (all roles):
+  - Click 🧪 test button on any installed/connected plugin
+  - Auto-runs through `testSteps` array with 900 ms animated delays
+  - Shows live tool call → result pairs as they complete
+  - Ends with green "Connection verified" success card; "Run again" resets and re-runs
+  - ChEMBL test: `target_search("BRAF V600E")` → CHEMBL5145, `compound_search("vemurafenib")` → CHEMBL1229517
+- **Models Leaderboard** tab (new tab in `/models`):
+  - 7 entries: Gemini 2.5 Pro, Claude Opus 4, GPT-4o, Claude Sonnet 4.5, Mistral Large 2, Llama 3.3 70B, BioGPT-Large
+  - Sortable columns: Arena ELO, HF Stars, Context (K), Input $/1M, Release Date, Params (B)
+  - Color-coded ELO (green ≥1350, yellow ≥1250)
+  - Notes panel showing selected model's detailed commentary
+  - Sources footnote: LMSYS Arena, HuggingFace, provider pricing pages
+- **Remote-only model policy**:
+  - Llama 3.3 70B converted from `status: "local"` → `status: "available"` via Groq Cloud API ($0.39/1M)
+  - Drug-GPT and BioGPT descriptions updated to reflect remote API endpoints (not local Ollama)
+  - Usage mock updated: Llama now shows $0.21 cost (Groq pricing)
+
+---
+
 ## v1.006 — Foundation Models Hub
 **Date:** 2026-03-28
 **Tag:** `v1.006`

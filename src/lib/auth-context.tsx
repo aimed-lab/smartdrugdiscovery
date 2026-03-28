@@ -1,6 +1,7 @@
 "use client";
 
 import { createContext, useContext, useState, ReactNode, useEffect } from "react";
+import { type AppRole } from "@/lib/roles";
 
 export interface User {
   name: string;
@@ -8,7 +9,7 @@ export interface User {
   title: string;
   institution: string;
   avatar: string;
-  role: string;
+  role: AppRole;
 }
 
 interface AuthContextType {
@@ -24,7 +25,7 @@ const VALID_INVITE_CODES = ["SPARC2026"];
 
 // Persistent user database — keyed by email
 const USER_DB_KEY = "sdd-user-db";
-const AUTH_KEY = "sdd-auth-user";
+const AUTH_KEY    = "sdd-auth-user";
 
 // Seed database with known users
 const SEED_USERS: Record<string, User> = {
@@ -34,7 +35,7 @@ const SEED_USERS: Record<string, User> = {
     title: "Professor and Director",
     institution: "UAB Systems Pharmacology AI Research Center",
     avatar: "JC",
-    role: "Admin",
+    role: "Owner",
   },
 };
 
@@ -56,7 +57,6 @@ function lookupOrCreateUser(email: string): User {
   const db = getUserDB();
   if (db[email]) return db[email];
 
-  // Create new user from email
   const namePart = email.split("@")[0].replace(/[._-]/g, " ");
   const name = namePart
     .split(" ")
@@ -84,8 +84,8 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const [user, setUser] = useState<User | null>(null);
+  const [loading, setLoading]                 = useState(true);
+  const [user, setUser]                       = useState<User | null>(null);
 
   useEffect(() => {
     const storedEmail = localStorage.getItem(AUTH_KEY);
@@ -99,15 +99,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = (email: string, inviteCode: string): string | null => {
     const trimmedEmail = email.trim().toLowerCase();
-    const trimmedCode = inviteCode.trim().toUpperCase();
-
-    if (!trimmedEmail || !trimmedEmail.includes("@")) {
+    const trimmedCode  = inviteCode.trim().toUpperCase();
+    if (!trimmedEmail || !trimmedEmail.includes("@"))
       return "Please enter a valid email address.";
-    }
-    if (!VALID_INVITE_CODES.includes(trimmedCode)) {
+    if (!VALID_INVITE_CODES.includes(trimmedCode))
       return "Invalid invite code. Please check and try again.";
-    }
-
     const u = lookupOrCreateUser(trimmedEmail);
     setUser(u);
     setIsAuthenticated(true);

@@ -9,6 +9,104 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 
 type ModelStatus = "connected" | "available" | "local" | "not_installed";
 type ModelProvider = "Anthropic" | "OpenAI" | "Google" | "Microsoft" | "Meta" | "UAB SysPAI" | "Mistral";
+type SortKey = "arenaElo" | "hfStars" | "contextK" | "inputPer1M" | "releaseDate" | "paramB";
+
+// ── Leaderboard entry ─────────────────────────────────────────────────────────
+
+interface LeaderboardEntry {
+  rank: number;
+  name: string;
+  provider: ModelProvider;
+  version: string;
+  arenaElo: number;          // LMSYS Chatbot Arena ELO
+  hfStars: number;           // HuggingFace stars (thousands)
+  contextK: number;          // context window K tokens
+  inputPer1M: number;        // USD per 1M input tokens
+  outputPer1M: number;       // USD per 1M output tokens
+  paramB: number | null;     // parameter count in billions (null = undisclosed)
+  releaseDate: string;       // YYYY-MM
+  lastUpdateDate: string;    // YYYY-MM
+  location: string;          // server region / data residency
+  license: "Proprietary" | "Open-weight" | "Apache 2.0" | "MIT" | "Llama";
+  bestFor: string[];         // recommended use cases
+  biomedRank: number | null; // rank on biomedical benchmarks (MedQA/PubMedQA) — null = not benchmarked
+  notes: string;
+}
+
+const leaderboard: LeaderboardEntry[] = [
+  {
+    rank: 1,
+    name: "Gemini 2.5 Pro", provider: "Google", version: "gemini-2.5-pro-preview",
+    arenaElo: 1380, hfStars: 0, contextK: 1000,
+    inputPer1M: 1.25, outputPer1M: 5.00, paramB: null,
+    releaseDate: "2025-03", lastUpdateDate: "2026-03",
+    location: "US (Google Cloud)", license: "Proprietary",
+    bestFor: ["Long context", "Clinical docs", "EHR analysis"],
+    biomedRank: 3, notes: "Largest context window available. Best for full-paper + EHR ingestion.",
+  },
+  {
+    rank: 2,
+    name: "Claude Opus 4", provider: "Anthropic", version: "claude-opus-4-0",
+    arenaElo: 1371, hfStars: 0, contextK: 200,
+    inputPer1M: 15.00, outputPer1M: 75.00, paramB: null,
+    releaseDate: "2025-06", lastUpdateDate: "2026-01",
+    location: "US / EU (AWS Bedrock, GCP)", license: "Proprietary",
+    bestFor: ["Decision reports", "Multi-step reasoning", "Go/No-Go analysis"],
+    biomedRank: 1, notes: "Top biomedical reasoning. Highest cost — use for critical decisions.",
+  },
+  {
+    rank: 3,
+    name: "GPT-4o", provider: "OpenAI", version: "gpt-4o-2024-11-20",
+    arenaElo: 1345, hfStars: 0, contextK: 128,
+    inputPer1M: 2.50, outputPer1M: 10.00, paramB: null,
+    releaseDate: "2024-05", lastUpdateDate: "2024-11",
+    location: "US (Azure)", license: "Proprietary",
+    bestFor: ["Multimodal", "Structure images", "Literature + code"],
+    biomedRank: 2, notes: "Native multimodal — can read spectra images, gel photos, and PDFs together.",
+  },
+  {
+    rank: 4,
+    name: "Claude Sonnet 4.5", provider: "Anthropic", version: "claude-sonnet-4-5",
+    arenaElo: 1330, hfStars: 0, contextK: 200,
+    inputPer1M: 3.00, outputPer1M: 15.00, paramB: null,
+    releaseDate: "2025-07", lastUpdateDate: "2025-10",
+    location: "US / EU (AWS Bedrock, GCP)", license: "Proprietary",
+    bestFor: ["Drug design", "Literature", "Code", "General reasoning"],
+    biomedRank: 4, notes: "Best cost/performance ratio. Platform default model.",
+  },
+  {
+    rank: 5,
+    name: "Mistral Large 2", provider: "Mistral", version: "mistral-large-2411",
+    arenaElo: 1251, hfStars: 14.2, contextK: 128,
+    inputPer1M: 2.00, outputPer1M: 6.00, paramB: 123,
+    releaseDate: "2024-11", lastUpdateDate: "2025-02",
+    location: "EU (Mistral La Plateforme)", license: "Proprietary",
+    bestFor: ["EU GDPR compliance", "Code generation", "Data analysis"],
+    biomedRank: null, notes: "EU-hosted — required for GDPR / European data residency. Strong at function calling.",
+  },
+  {
+    rank: 6,
+    name: "Llama 3.3 70B", provider: "Meta", version: "llama3.3:70b-instruct",
+    arenaElo: 1215, hfStars: 98.7, contextK: 128,
+    inputPer1M: 0.39, outputPer1M: 0.39, paramB: 70,
+    releaseDate: "2024-12", lastUpdateDate: "2025-01",
+    location: "Any (self-hosted / Groq / Together AI)", license: "Llama",
+    bestFor: ["Privacy-sensitive data", "Low-cost inference", "Custom fine-tuning"],
+    biomedRank: 6, notes: "Open-weight. Host on Groq ($0.39/1M) for speed, or locally for full privacy.",
+  },
+  {
+    rank: 7,
+    name: "BioGPT-Large", provider: "Microsoft", version: "microsoft/BioGPT-Large",
+    arenaElo: null as unknown as number, hfStars: 2.1, contextK: 4,
+    inputPer1M: 0, outputPer1M: 0, paramB: 1.5,
+    releaseDate: "2022-10", lastUpdateDate: "2023-06",
+    location: "Self-hosted (HuggingFace)", license: "MIT",
+    bestFor: ["Biomedical NLP", "Entity extraction", "PubMed QA"],
+    biomedRank: 5, notes: "Pre-trained on 15M PubMed abstracts. Narrow domain — not general chat. Free to run.",
+  },
+];
+
+type SortDir = "asc" | "desc";
 
 interface FoundationModel {
   id: string;
@@ -115,7 +213,7 @@ const models: FoundationModel[] = [
     latencyMs: 0,
     uptime: 0,
     hasKey: false,
-    description: "Domain-fine-tuned model for molecular SMILES generation, scaffold hopping, and ADMET property prediction. Runs locally via Ollama.",
+    description: "Domain-fine-tuned model for molecular SMILES generation, scaffold hopping, and ADMET property prediction. Coming soon — hosted UAB SysPAI API endpoint.",
     safetyFiltered: true,
     domainTuned: true,
   },
@@ -132,24 +230,24 @@ const models: FoundationModel[] = [
     latencyMs: 0,
     uptime: 0,
     hasKey: false,
-    description: "Pre-trained on PubMed. Best for entity extraction, relation classification, and biomedical QA. Runs locally.",
+    description: "Pre-trained on 15M PubMed abstracts. Best for entity extraction, relation classification, and biomedical QA. Available via HuggingFace Inference API.",
     safetyFiltered: false,
     domainTuned: true,
   },
   {
     id: "llama3",
     name: "Llama 3.3 70B",
-    version: "llama3.3:70b",
+    version: "llama-3.3-70b-versatile",
     provider: "Meta",
-    status: "local",
-    useCase: ["General reasoning", "Privacy-sensitive data", "Offline"],
+    status: "available",
+    useCase: ["General reasoning", "Low-cost inference", "Custom fine-tuning"],
     contextK: 128,
-    inputPer1M: null,
-    outputPer1M: null,
-    latencyMs: 3800,
-    uptime: 100,
+    inputPer1M: 0.39,
+    outputPer1M: 0.39,
+    latencyMs: 380,
+    uptime: 99.2,
     hasKey: false,
-    description: "Open-weight model running locally via Ollama. Use for privacy-sensitive patient data that must not leave your institution.",
+    description: "Open-weight model served via Groq Cloud API ($0.39/1M tokens, input & output). Highest open-model throughput; also available on Together AI and Fireworks AI.",
     safetyFiltered: false,
     domainTuned: false,
   },
@@ -177,7 +275,7 @@ const models: FoundationModel[] = [
 const usageMock = [
   { model: "Claude Sonnet 4.5", inputM: 1.24, outputM: 0.31, calls: 418, costUSD: 8.37 },
   { model: "Claude Opus 4",     inputM: 0.08, outputM: 0.02, calls: 12,  costUSD: 2.70 },
-  { model: "Llama 3.3 70B",    inputM: 0.42, outputM: 0.11, calls: 67,  costUSD: 0.00 },
+  { model: "Llama 3.3 70B",    inputM: 0.42, outputM: 0.11, calls: 67,  costUSD: 0.21 },
 ];
 const totalCost = usageMock.reduce((s, r) => s + r.costUSD, 0);
 
@@ -210,6 +308,29 @@ export default function ModelsPage() {
   const [costCap, setCostCap]           = useState("50");
   const [capEnabled, setCapEnabled]     = useState(true);
   const [activeModelId, setActiveModelId] = useState("claude-sonnet");
+  const [lbSort, setLbSort]             = useState<SortKey>("arenaElo");
+  const [lbDir, setLbDir]               = useState<SortDir>("desc");
+
+  const sortedLb = [...leaderboard].sort((a, b) => {
+    const av = a[lbSort] ?? -Infinity;
+    const bv = b[lbSort] ?? -Infinity;
+    return lbDir === "desc" ? (bv as number) - (av as number) : (av as number) - (bv as number);
+  });
+
+  const toggleSort = (key: SortKey) => {
+    if (lbSort === key) setLbDir(lbDir === "desc" ? "asc" : "desc");
+    else { setLbSort(key); setLbDir("desc"); }
+  };
+
+  const SortTh = ({ col, label }: { col: SortKey; label: string }) => (
+    <th
+      onClick={() => toggleSort(col)}
+      className="pb-2 pr-3 font-medium text-left cursor-pointer select-none hover:text-foreground whitespace-nowrap"
+    >
+      {label}
+      {lbSort === col ? (lbDir === "desc" ? " ▼" : " ▲") : <span className="opacity-30"> ⇅</span>}
+    </th>
+  );
 
   const filtered = models.filter((m) => activeFilter === "all" || m.status === activeFilter);
 
@@ -267,6 +388,7 @@ export default function ModelsPage() {
       <Tabs defaultValue="catalogue">
         <TabsList>
           <TabsTrigger value="catalogue">Model Catalogue</TabsTrigger>
+          <TabsTrigger value="leaderboard">Leaderboard</TabsTrigger>
           <TabsTrigger value="keys">API Keys</TabsTrigger>
           <TabsTrigger value="usage">Usage &amp; Costs</TabsTrigger>
           <TabsTrigger value="settings">Settings</TabsTrigger>
@@ -404,6 +526,138 @@ export default function ModelsPage() {
               );
             })}
           </div>
+        </TabsContent>
+
+        {/* ── Leaderboard ────────────────────────────────────────── */}
+        <TabsContent value="leaderboard" className="mt-4 space-y-4">
+          <div className="flex items-start justify-between gap-4 flex-wrap">
+            <div>
+              <p className="text-sm text-muted-foreground">
+                Sortable comparison of remote API models — Arena ELO, HuggingFace stars, context, cost, and biomedical benchmark rank.
+                Click any column header to sort. <span className="font-medium">No local models listed.</span>
+              </p>
+            </div>
+            <div className="flex gap-2 text-xs text-muted-foreground shrink-0">
+              <span className="rounded-full bg-muted px-2 py-1">Sources: LMSYS Arena · HuggingFace · provider pricing pages</span>
+              <span className="rounded-full bg-muted px-2 py-1">Updated 2026-03</span>
+            </div>
+          </div>
+
+          <div className="overflow-x-auto rounded-xl border">
+            <table className="w-full text-sm min-w-[980px]">
+              <thead>
+                <tr className="border-b bg-muted/40 text-xs text-muted-foreground">
+                  <th className="pb-2 pl-4 pr-3 pt-3 font-medium text-left w-8">#</th>
+                  <th className="pb-2 pr-3 pt-3 font-medium text-left">Model</th>
+                  <th className="pb-2 pr-3 pt-3 font-medium text-left">Provider</th>
+                  <SortTh col="arenaElo"    label="Arena ELO" />
+                  <SortTh col="hfStars"     label="HF ★ (k)" />
+                  <SortTh col="contextK"    label="Context" />
+                  <SortTh col="inputPer1M"  label="$/1M in" />
+                  <SortTh col="paramB"      label="Params (B)" />
+                  <SortTh col="releaseDate" label="Released" />
+                  <th className="pb-2 pr-3 pt-3 font-medium text-left whitespace-nowrap">Last update</th>
+                  <th className="pb-2 pr-3 pt-3 font-medium text-left">Location</th>
+                  <th className="pb-2 pr-3 pt-3 font-medium text-left">Biomed rank</th>
+                  <th className="pb-2 pr-4 pt-3 font-medium text-left">Best for</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y">
+                {sortedLb.map((m, idx) => {
+                  const isConnected = models.find((cm) => cm.name === m.name)?.status === "connected";
+                  return (
+                    <tr key={m.name} className={cn("hover:bg-muted/20 transition-colors", isConnected && "bg-green-50/40 dark:bg-green-950/10")}>
+                      <td className="py-3 pl-4 pr-3 text-muted-foreground font-mono text-xs">{idx + 1}</td>
+                      <td className="py-3 pr-3">
+                        <div className="flex items-center gap-2">
+                          {isConnected && <span className="h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse shrink-0" title="Connected" />}
+                          <div>
+                            <p className="font-medium text-sm">{m.name}</p>
+                            <p className="font-mono text-[10px] text-muted-foreground">{m.version}</p>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="py-3 pr-3">
+                        <span className={cn("rounded-full px-2 py-0.5 text-[10px] font-medium", providerBadge[m.provider])}>{m.provider}</span>
+                      </td>
+                      {/* Arena ELO */}
+                      <td className="py-3 pr-3">
+                        {m.arenaElo ? (
+                          <span className={cn("font-semibold", m.arenaElo >= 1350 ? "text-green-600 dark:text-green-400" : m.arenaElo >= 1250 ? "text-yellow-600 dark:text-yellow-400" : "text-muted-foreground")}>
+                            {m.arenaElo.toLocaleString()}
+                          </span>
+                        ) : <span className="text-muted-foreground text-xs">—</span>}
+                      </td>
+                      {/* HF Stars */}
+                      <td className="py-3 pr-3 text-xs">
+                        {m.hfStars > 0 ? (
+                          <span className="text-yellow-600 dark:text-yellow-400 font-medium">★ {m.hfStars.toFixed(1)}k</span>
+                        ) : <span className="text-muted-foreground">Proprietary</span>}
+                      </td>
+                      {/* Context */}
+                      <td className="py-3 pr-3 font-mono text-xs font-medium">
+                        <span className={cn(m.contextK >= 500 ? "text-green-600 dark:text-green-400" : "")}>{m.contextK}K</span>
+                      </td>
+                      {/* Cost */}
+                      <td className="py-3 pr-3 font-mono text-xs">
+                        {m.inputPer1M === 0 ? (
+                          <span className="text-green-600 dark:text-green-400 font-semibold">Free</span>
+                        ) : (
+                          <span>
+                            <span className="font-semibold">${m.inputPer1M.toFixed(2)}</span>
+                            <span className="text-muted-foreground"> / ${m.outputPer1M.toFixed(2)}</span>
+                          </span>
+                        )}
+                      </td>
+                      {/* Params */}
+                      <td className="py-3 pr-3 text-xs text-muted-foreground font-mono">
+                        {m.paramB ? `${m.paramB}B` : "—"}
+                      </td>
+                      {/* Release date */}
+                      <td className="py-3 pr-3 text-xs text-muted-foreground">{m.releaseDate}</td>
+                      {/* Last update */}
+                      <td className="py-3 pr-3 text-xs text-muted-foreground">{m.lastUpdateDate}</td>
+                      {/* Location */}
+                      <td className="py-3 pr-3 text-xs text-muted-foreground max-w-[140px]">{m.location}</td>
+                      {/* Biomed rank */}
+                      <td className="py-3 pr-3 text-center">
+                        {m.biomedRank ? (
+                          <span className={cn("rounded-full px-2 py-0.5 text-xs font-semibold", m.biomedRank <= 2 ? "bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300" : m.biomedRank <= 4 ? "bg-yellow-100 text-yellow-800" : "bg-muted text-muted-foreground")}>
+                            #{m.biomedRank}
+                          </span>
+                        ) : <span className="text-muted-foreground text-xs">—</span>}
+                      </td>
+                      {/* Best for */}
+                      <td className="py-3 pr-4">
+                        <div className="flex flex-wrap gap-1">
+                          {m.bestFor.slice(0, 2).map((u) => (
+                            <span key={u} className="rounded-full bg-muted px-1.5 py-0.5 text-[10px]">{u}</span>
+                          ))}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Notes panel */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {sortedLb.map((m) => (
+              <div key={m.name} className="rounded-lg border px-4 py-3 text-xs space-y-1">
+                <div className="flex items-center gap-2">
+                  <span className="font-semibold">{m.name}</span>
+                  <span className={cn("rounded-full px-1.5 py-0.5 text-[10px] font-medium", m.license === "Proprietary" ? "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300" : "bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300")}>{m.license}</span>
+                </div>
+                <p className="text-muted-foreground leading-relaxed">{m.notes}</p>
+              </div>
+            ))}
+          </div>
+
+          <p className="text-[10px] text-muted-foreground">
+            Arena ELO from LMSYS Chatbot Arena (chatbot-arena.lmsys.org). HuggingFace stars from huggingface.co/models. Biomedical rank based on MedQA + PubMedQA combined performance. Pricing sourced from provider API pages as of 2026-03 — verify before production use.
+          </p>
         </TabsContent>
 
         {/* ── API Keys ───────────────────────────────────────────── */}
