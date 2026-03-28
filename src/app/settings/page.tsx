@@ -8,7 +8,12 @@ import { Separator } from "@/components/ui/separator";
 import { useAuth } from "@/lib/auth-context";
 import { PLATFORM_CONFIG } from "@/lib/platform-config";
 import { RoleAvatar } from "@/components/role-avatar";
-import { ROLE_META } from "@/lib/roles";
+import { ROLE_META, type AppRole } from "@/lib/roles";
+import {
+  MODULE_GROUPS, MODULE_LABELS, CONFIGURABLE_ROLES,
+  type AccessLevel, type ModuleKey, type ModuleAccessConfig,
+  loadModuleAccess, saveModuleAccess,
+} from "@/lib/module-access";
 
 export default function SettingsPage() {
   const { user, updateUser, initiateOwnerTransfer, cancelOwnerTransfer } = useAuth();
@@ -244,6 +249,9 @@ export default function SettingsPage() {
           <TabsTrigger value="data">Data</TabsTrigger>
           <TabsTrigger value="privacy">Privacy & Legal</TabsTrigger>
           <TabsTrigger value="about">About</TabsTrigger>
+          {(user?.role === "Owner" || user?.role === "Admin") && (
+            <TabsTrigger value="access-control">Access Control</TabsTrigger>
+          )}
         </TabsList>
 
         {/* Profile Tab */}
@@ -1056,7 +1064,166 @@ export default function SettingsPage() {
             </CardContent>
           </Card>
         </TabsContent>
+
+        {/* ── ACCESS CONTROL TAB ───────────────────────────────────────── */}
+        <TabsContent value="access-control">
+          <AccessControlPanel />
+        </TabsContent>
       </Tabs>
+    </div>
+  );
+}
+
+// ── Access Control Panel (Admin/Owner only) ───────────────────────────────
+
+function AccessControlPanel() {
+  const [config, setConfig]   = useState<ModuleAccessConfig>({});
+  const [saved,  setSaved]    = useState(false);
+  const [expand, setExpand]   = useState<Record<string, boolean>>({});
+
+  // Load on mount
+  useEffect(() => { setConfig(loadModuleAccess()); }, []);
+
+  function setAccess(moduleKey: ModuleKey, role: AppRole, level: AccessLevel) {
+    setConfig((prev) => ({
+      ...prev,
+      [moduleKey]: { ...(prev[moduleKey] ?? {}), [role]: level },
+    }));
+  }
+
+  function resetAll() {
+    setConfig({});
+    saveModuleAccess({});
+    setSaved(true);
+    setTimeout(() => setSaved(false), 3000);
+  }
+
+  function saveAll() {
+    saveModuleAccess(config);
+    setSaved(true);
+    setTimeout(() => setSaved(false), 3000);
+  }
+
+  const ACCESS_OPTIONS: { value: AccessLevel; label: string; color: string }[] = [
+    { value: "full",    label: "Full",    color: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300" },
+    { value: "partial", label: "Partial", color: "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300" },
+    { value: "hidden",  label: "Hidden",  color: "bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400" },
+  ];
+
+  return (
+    <div className="space-y-6">
+      <Card>
+        <CardHeader>
+          <CardTitle>Module Access Control</CardTitle>
+          <CardDescription>
+            Configure which platform modules are visible to each role. Owner and Admin always have full access.
+            Changes apply immediately after saving — users see the updated nav on next page load.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          {/* Legend */}
+          <div className="flex flex-wrap gap-4 text-xs">
+            {ACCESS_OPTIONS.map(({ value, label, color }) => (
+              <span key={value} className="flex items-center gap-1.5">
+                <span className={`rounded-full px-2 py-0.5 font-medium ${color}`}>{label}</span>
+                <span className="text-muted-foreground">
+                  {value === "full"    ? "— visible and fully usable" :
+                   value === "partial" ? "— shown with 🔒 badge; page shows restricted notice" :
+                                        "— completely invisible in navigation"}
+                </span>
+              </span>
+            ))}
+          </div>
+
+          {/* Role column headers */}
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="border-b">
+                  <th className="text-left py-2 pr-4 font-medium text-muted-foreground w-56">Module</th>
+                  {CONFIGURABLE_ROLES.map((role) => (
+                    <th key={role} className="text-center py-2 px-3 font-medium text-muted-foreground min-w-[110px]">
+                      <span className={`rounded-full px-2 py-0.5 ${ROLE_META[role].color}`}>
+                        {ROLE_META[role].label}
+                      </span>
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {MODULE_GROUPS.map((group) => {
+                  const isExpanded = expand[group.label] !== false; // default expanded
+                  return (
+                    <>
+                      {/* Group header row */}
+                      <tr key={group.label} className="bg-muted/40">
+                        <td colSpan={CONFIGURABLE_ROLES.length + 1} className="py-1.5 px-2">
+                          <button
+                            onClick={() => setExpand((prev) => ({ ...prev, [group.label]: !isExpanded }))}
+                            className="flex items-center gap-1.5 font-semibold text-foreground text-xs"
+                          >
+                            <span className={`transition-transform inline-block ${isExpanded ? "rotate-90" : ""}`}>▶</span>
+                            {group.label}
+                          </button>
+                        </td>
+                      </tr>
+                      {/* Module rows */}
+                      {isExpanded && group.keys.map((key) => {
+                        const isSubItem = key.includes("/");
+                        return (
+                          <tr key={key} className="border-b border-border/50 hover:bg-accent/20">
+                            <td className={`py-2 pr-4 text-xs ${isSubItem ? "pl-6 text-muted-foreground" : "pl-2 font-medium"}`}>
+                              {MODULE_LABELS[key]}
+                            </td>
+                            {CONFIGURABLE_ROLES.map((role) => {
+                              const current: AccessLevel = config[key]?.[role] ?? "full";
+                              return (
+                                <td key={role} className="text-center py-2 px-3">
+                                  <select
+                                    value={current}
+                                    onChange={(e) => setAccess(key, role, e.target.value as AccessLevel)}
+                                    className={`rounded-md border px-2 py-1 text-[11px] font-medium focus:outline-none focus:ring-1 focus:ring-ring cursor-pointer
+                                      ${current === "full"    ? "border-green-300 bg-green-50 text-green-700 dark:border-green-700 dark:bg-green-950/30 dark:text-green-300" :
+                                        current === "partial" ? "border-yellow-300 bg-yellow-50 text-yellow-700 dark:border-yellow-700 dark:bg-yellow-950/30 dark:text-yellow-300" :
+                                                                "border-gray-300 bg-gray-50 text-gray-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-400"}`}
+                                  >
+                                    {ACCESS_OPTIONS.map(({ value, label }) => (
+                                      <option key={value} value={value}>{label}</option>
+                                    ))}
+                                  </select>
+                                </td>
+                              );
+                            })}
+                          </tr>
+                        );
+                      })}
+                    </>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Actions */}
+          {saved && (
+            <p className="text-sm text-green-600 dark:text-green-400 font-medium">✓ Access control settings saved</p>
+          )}
+          <div className="flex gap-3">
+            <button
+              onClick={saveAll}
+              className="rounded-md bg-primary text-primary-foreground px-5 py-2 text-sm font-medium hover:bg-primary/90 transition-colors"
+            >
+              Save Changes
+            </button>
+            <button
+              onClick={resetAll}
+              className="rounded-md border px-5 py-2 text-sm font-medium hover:bg-accent transition-colors"
+            >
+              Reset All to Full Access
+            </button>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }

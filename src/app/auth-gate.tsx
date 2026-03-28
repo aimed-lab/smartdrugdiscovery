@@ -1,17 +1,20 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { AuthProvider, useAuth } from "@/lib/auth-context";
 import LoginPage from "./login/page";
 import { cn } from "@/lib/utils";
 import {
   Dna, FlaskConical, Stethoscope, ShieldCheck,
-  Sparkles, Package, Puzzle, FolderOpen, BrainCircuit, Headset,
+  Sparkles, Package, Puzzle, FolderOpen, BrainCircuit, Headset, Lock, ShieldAlert,
 } from "lucide-react";
 import { FeedbackWidget } from "@/components/feedback-widget";
 import { RoleAvatar } from "@/components/role-avatar";
 import { PLATFORM_CONFIG } from "@/lib/platform-config";
 import { type AppRole, hasRole } from "@/lib/roles";
+import {
+  type ModuleKey, loadModuleAccess, getAccess, type ModuleAccessConfig,
+} from "@/lib/module-access";
 
 export function AuthGate({ children }: { children: React.ReactNode }) {
   return (
@@ -160,6 +163,13 @@ function Sidebar({
   });
   const [darkMode, setDarkMode] = useState(false);
   const [fontSize, setFontSize] = useState<0 | 1 | 2>(0);
+  const [moduleAccess, setModuleAccess] = useState<ModuleAccessConfig>({});
+
+  // Load module access config from localStorage (admin-configurable)
+  useEffect(() => { setModuleAccess(loadModuleAccess()); }, []);
+
+  /** Returns "full" | "partial" | "hidden" for the current user + a module key. */
+  const access = (key: ModuleKey) => getAccess(moduleAccess, user?.role, key);
 
   const toggleTheme = () => {
     setDarkMode(!darkMode);
@@ -200,31 +210,55 @@ function Sidebar({
         {/* Grouped sections */}
         {navGroups.map((group) => {
           const GroupIcon = group.icon;
+          // Map group label to module key
+          const groupKey = group.label.toLowerCase() as ModuleKey;
+          const groupAccess = access(groupKey);
+          if (groupAccess === "hidden") return null;
+
           return (
             <div key={group.label} className="mt-1">
               <button
                 onClick={() => toggle(group.label)}
-                className="flex items-center justify-between w-full rounded-md px-3 py-1.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground hover:text-foreground hover:bg-accent/50 transition-colors"
+                className={cn(
+                  "flex items-center justify-between w-full rounded-md px-3 py-1.5 text-xs font-semibold uppercase tracking-wider transition-colors",
+                  groupAccess === "partial"
+                    ? "text-muted-foreground/60 hover:bg-accent/30 cursor-not-allowed"
+                    : "text-muted-foreground hover:text-foreground hover:bg-accent/50"
+                )}
               >
                 <span className="flex items-center gap-2">
                   <GroupIcon className="h-3.5 w-3.5 shrink-0" />
                   {group.label}
+                  {groupAccess === "partial" && <Lock className="h-3 w-3 shrink-0 opacity-50" />}
                 </span>
                 <svg
                   className={cn("h-3.5 w-3.5 transition-transform shrink-0", expanded[group.label] && "rotate-90")}
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
+                  viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
                 >
                   <path d="M9 18l6-6-6-6" />
                 </svg>
               </button>
               {expanded[group.label] && (
                 <div className="ml-2 border-l border-border pl-1 space-y-0.5 mt-0.5">
-                  {group.items.map((item) => (
-                    <NavItem key={item.href} href={item.href} label={item.label} sub onNavigate={onClose} />
-                  ))}
+                  {group.items.map((item) => {
+                    // Build sub-key: e.g. "biology/target-board" from href "/disease-biology/target-board"
+                    const hrefParts  = item.href.replace("/disease-biology", "/biology").split("/").filter(Boolean);
+                    const subKey = hrefParts.length >= 2
+                      ? (`${groupKey}/${hrefParts[hrefParts.length - 1]}` as ModuleKey)
+                      : groupKey;
+                    const subAccess = access(subKey);
+                    if (subAccess === "hidden") return null;
+                    return (
+                      <NavItem
+                        key={item.href}
+                        href={item.href}
+                        label={item.label}
+                        sub
+                        onNavigate={onClose}
+                        locked={subAccess === "partial"}
+                      />
+                    );
+                  })}
                 </div>
               )}
             </div>
@@ -233,12 +267,15 @@ function Sidebar({
 
         {/* Utilities */}
         <div className="mt-3 pt-2 border-t space-y-0.5">
-          <NavItem href="/design" label="Design with AI" icon={Sparkles} onNavigate={onClose} />
-          <NavItem href="/models" label="Foundation Models" icon={BrainCircuit} onNavigate={onClose} />
-          <NavItem href="/services" label="Add-on Service" icon={Package} onNavigate={onClose} />
-          <NavItem href="/plugins" label="Tool Plugins" icon={Puzzle} onNavigate={onClose} />
-          {hasRole(user?.role, "TechSupport") && (
-            <NavItem href="/support" label="Support Dashboard" icon={Headset} onNavigate={onClose} />
+          {access("design")  !== "hidden" && <NavItem href="/design"   label="Design with AI"     icon={Sparkles}     onNavigate={onClose} locked={access("design")  === "partial"} />}
+          {access("models")  !== "hidden" && <NavItem href="/models"   label="Foundation Models"  icon={BrainCircuit} onNavigate={onClose} locked={access("models")  === "partial"} />}
+          {access("services")!== "hidden" && <NavItem href="/services" label="Add-on Service"     icon={Package}      onNavigate={onClose} locked={access("services")=== "partial"} />}
+          {access("plugins") !== "hidden" && <NavItem href="/plugins"  label="Tool Plugins"       icon={Puzzle}       onNavigate={onClose} locked={access("plugins") === "partial"} />}
+          {access("support") !== "hidden" && hasRole(user?.role, "TechSupport") && (
+            <NavItem href="/support" label="Support Dashboard" icon={Headset} onNavigate={onClose} locked={access("support") === "partial"} />
+          )}
+          {hasRole(user?.role, "Developer") && (
+            <NavItem href="/security" label="Security & Compliance" icon={ShieldAlert} onNavigate={onClose} />
           )}
         </div>
       </div>
@@ -330,24 +367,31 @@ function Sidebar({
   );
 }
 
-function NavItem({ href, label, sub, icon: Icon, onNavigate }: {
+function NavItem({ href, label, sub, icon: Icon, onNavigate, locked }: {
   href: string;
   label: string;
   sub?: boolean;
   icon?: React.ComponentType<{ className?: string }>;
   onNavigate?: () => void;
+  /** Partial access — shown with a lock icon, click navigates but page shows restricted notice */
+  locked?: boolean;
 }) {
   return (
     <a
       href={href}
       onClick={onNavigate}
       className={cn(
-        "flex items-center gap-2 rounded-md px-3 py-1.5 text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors",
-        sub ? "text-xs ml-1" : "text-sm"
+        "flex items-center gap-2 rounded-md px-3 py-1.5 transition-colors",
+        sub ? "text-xs ml-1" : "text-sm",
+        locked
+          ? "text-muted-foreground/50 hover:bg-accent/30 italic"
+          : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
       )}
+      title={locked ? "Partial access — contact your Admin for full access" : undefined}
     >
       {Icon && <Icon className="h-3.5 w-3.5 shrink-0" />}
-      {label}
+      <span className="flex-1">{label}</span>
+      {locked && <Lock className="h-3 w-3 shrink-0 opacity-40" />}
     </a>
   );
 }
