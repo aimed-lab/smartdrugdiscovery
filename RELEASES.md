@@ -8,6 +8,66 @@ Tags follow `v1.xxx` in git. Stable releases are marked ⭐.
 
 ---
 
+## v1.104 — Tool Plugins: Hugging Face Hub + Kaggle Connectors
+**Date:** 2026-03-28
+**Tag:** `v1.104`
+**Commit:** `380ef1e`
+**Status:** Stable
+
+### New Features
+
+#### `src/app/plugins/page.tsx`
+- **Hugging Face Hub** (API · freemium · requires HF token)
+  - Access 500,000+ models: ESM-2, BioGPT, ChemBERTa, MolBERT, and more
+  - HF Inference API for embedding generation + zero-shot inference without local GPU
+  - Dataset search for molecular generation (ZINC-250k, ChEMBL-30, MOSES, QM9)
+  - Category: Foundation Models | FAIR: all ✓
+  - Test steps: `model_info`, protein embedding inference, `dataset_search`
+- **Kaggle Datasets & Notebooks** (API · free · requires Kaggle API key)
+  - GDSC2 (1,001 cell lines × 298 drugs), CCLE (1,457 lines), NCI-60 drug sensitivity data
+  - Community notebooks: search by topic + vote count (e.g. BRAF ML predictor, XGBoost AUC 0.87)
+  - Category: Datasets | FAIR: F/A/I ✓, Reusable varies by dataset license
+  - Test steps: `dataset_search`, `dataset_download`, `notebook_search`
+
+### Files Changed
+| File | Change type |
+|------|------------|
+| `src/app/plugins/page.tsx` | Modified (2 new plugin entries) |
+
+### Rollback
+```bash
+git checkout v1.103   # reverts to RELEASES.md update only
+```
+
+---
+
+## v1.103 — RELEASES.md: Full Agentic Workflow Documentation
+**Date:** 2026-03-28
+**Tag:** `v1.103`
+**Commit:** `a5ebe1b`
+**Status:** Stable
+
+### Changes
+- Full release notes for v1.101 and v1.102 added (files changed table, rollback command, commit hash)
+- Developer Guide completely rewritten for agentic AI coding:
+  - **Versioning philosophy table**: typo/fix → single component → cross-page → major milestone
+  - **Rollback options A/B/C**: rollback branch (safe), hard reset (destructive), revert commit (non-destructive)
+  - **Cherry-pick recipe**: apply a single fix from a newer commit onto a rollback branch
+  - **Session start/end checklists**: structured workflow for Claude Code sessions
+  - **Stable version reference table**: quick orientation for all tagged versions
+
+### Files Changed
+| File | Change type |
+|------|------------|
+| `RELEASES.md` | Modified (208 lines added) |
+
+### Rollback
+```bash
+git checkout v1.102   # reverts to assets filter/sort state
+```
+
+---
+
 ## v1.102 — Platform Config, Assets Filter/Sort, Settings Polish
 **Date:** 2026-03-28
 **Tag:** `v1.102`
@@ -440,6 +500,8 @@ Use this at the **end** of each session:
 
 | Tag | Status | Key feature |
 |-----|--------|-------------|
+| `v1.104` | Stable | HuggingFace + Kaggle plugin connectors |
+| `v1.103` | Stable | RELEASES.md agentic workflow guide |
 | `v1.102` | Stable | Platform config, Assets filter/sort, Settings polish |
 | `v1.101` | Stable | Role-color avatar, card footer alignment |
 | `v1.100` | ⭐ Major | Enterprise RBAC, full platform overhaul |
