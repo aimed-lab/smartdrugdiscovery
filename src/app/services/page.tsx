@@ -370,34 +370,33 @@ export default function ServicesPage() {
                     ))}
                   </ul>
 
-                  <div className="border-t my-3" />
-
-                  <div className="flex flex-wrap gap-1.5">
-                    {agent.operatesOn.map((entity) => (
-                      <span
-                        key={entity}
-                        className={cn(
-                          "rounded-full px-2 py-0.5 text-xs font-medium capitalize",
-                          entityChipColors[entity]
-                        )}
-                      >
-                        {entity}
-                      </span>
-                    ))}
+                  {/* Footer — chips + stats + button pinned together at card bottom */}
+                  <div className="mt-auto pt-3 border-t space-y-3">
+                    <div className="flex flex-wrap gap-1.5">
+                      {agent.operatesOn.map((entity) => (
+                        <span
+                          key={entity}
+                          className={cn(
+                            "rounded-full px-2 py-0.5 text-xs font-medium capitalize",
+                            entityChipColors[entity]
+                          )}
+                        >
+                          {entity}
+                        </span>
+                      ))}
+                    </div>
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="font-medium">{agent.successRate}%</span>
+                      <span className="text-muted-foreground">{agent.avgRunTime}</span>
+                      <span className="text-muted-foreground">{agent.creditsPerRun} credits</span>
+                    </div>
+                    <button
+                      className="w-full rounded-md px-4 py-2 text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
+                      disabled={agent.status !== "available"}
+                    >
+                      Run Agent
+                    </button>
                   </div>
-
-                  <div className="flex items-center justify-between text-sm mt-auto pt-3">
-                    <span className="font-medium">{agent.successRate}%</span>
-                    <span className="text-muted-foreground">{agent.avgRunTime}</span>
-                    <span className="text-muted-foreground">{agent.creditsPerRun} credits</span>
-                  </div>
-
-                  <button
-                    className="w-full mt-3 rounded-md px-4 py-2 text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
-                    disabled={agent.status !== "available"}
-                  >
-                    Run Agent
-                  </button>
                 </CardContent>
               </Card>
             ))}
