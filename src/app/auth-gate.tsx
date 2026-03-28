@@ -6,12 +6,12 @@ import LoginPage from "./login/page";
 import { cn } from "@/lib/utils";
 import {
   Dna, FlaskConical, Stethoscope, ShieldCheck,
-  Sparkles, Package, Puzzle, FolderOpen, BrainCircuit,
+  Sparkles, Package, Puzzle, FolderOpen, BrainCircuit, Headset,
 } from "lucide-react";
 import { FeedbackWidget } from "@/components/feedback-widget";
 import { RoleAvatar } from "@/components/role-avatar";
 import { PLATFORM_CONFIG } from "@/lib/platform-config";
-import { type AppRole } from "@/lib/roles";
+import { type AppRole, hasRole } from "@/lib/roles";
 
 export function AuthGate({ children }: { children: React.ReactNode }) {
   return (
@@ -237,6 +237,9 @@ function Sidebar({
           <NavItem href="/models" label="Foundation Models" icon={BrainCircuit} onNavigate={onClose} />
           <NavItem href="/services" label="Add-on Service" icon={Package} onNavigate={onClose} />
           <NavItem href="/plugins" label="Tool Plugins" icon={Puzzle} onNavigate={onClose} />
+          {hasRole(user?.role, "TechSupport") && (
+            <NavItem href="/support" label="Support Dashboard" icon={Headset} onNavigate={onClose} />
+          )}
         </div>
       </div>
 

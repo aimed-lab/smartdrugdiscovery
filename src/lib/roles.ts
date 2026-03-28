@@ -1,9 +1,11 @@
 // ── Role definitions ─────────────────────────────────────────────────────────
 // Mirrors GitHub's role hierarchy: Owner > Admin > Developer > User
+// TechSupport is a cross-cutting role: can view & resolve all support tickets,
+// but cannot manage billing, roles, or platform settings.
 
-export type AppRole = "Owner" | "Admin" | "Developer" | "User";
+export type AppRole = "Owner" | "Admin" | "TechSupport" | "Developer" | "User";
 
-export const ROLE_ORDER: AppRole[] = ["Owner", "Admin", "Developer", "User"];
+export const ROLE_ORDER: AppRole[] = ["Owner", "Admin", "TechSupport", "Developer", "User"];
 
 export function roleRank(role: AppRole): number {
   return ROLE_ORDER.indexOf(role);
@@ -42,6 +44,12 @@ export const ROLE_PERMISSIONS = {
 
   // Testing
   testPlugin:           "User",    // all roles can run the test modal
+
+  // Support / ticketing
+  viewAllTickets:       "TechSupport",  // TechSupport, Admin, Owner
+  updateTicketStatus:   "TechSupport",
+  assignTicket:         "TechSupport",
+  deleteTicket:         "Admin",
 } as const satisfies Record<string, AppRole>;
 
 export type Permission = keyof typeof ROLE_PERMISSIONS;
@@ -56,26 +64,29 @@ export function can(userRole: AppRole | string | undefined, permission: Permissi
 
 /** Solid bg + white text — used when avatar type is "initials" */
 export const ROLE_AVATAR_BG: Record<AppRole, string> = {
-  Owner:     "bg-orange-500 text-white",
-  Admin:     "bg-red-500 text-white",
-  Developer: "bg-blue-500 text-white",
-  User:      "bg-gray-400 text-white",
+  Owner:       "bg-orange-500 text-white",
+  Admin:       "bg-red-500 text-white",
+  TechSupport: "bg-teal-500 text-white",
+  Developer:   "bg-blue-500 text-white",
+  User:        "bg-gray-400 text-white",
 };
 
 /** Tailwind ring class — used when avatar type is "emoji" or "photo" */
 export const ROLE_RING: Record<AppRole, string> = {
-  Owner:     "ring-orange-500",
-  Admin:     "ring-red-500",
-  Developer: "ring-blue-500",
-  User:      "ring-gray-400",
+  Owner:       "ring-orange-500",
+  Admin:       "ring-red-500",
+  TechSupport: "ring-teal-500",
+  Developer:   "ring-blue-500",
+  User:        "ring-gray-400",
 };
 
 /** CSS rgba color for box-shadow glow — matches ring color at 50% opacity */
 export const ROLE_GLOW: Record<AppRole, string> = {
-  Owner:     "rgba(249,115,22,0.55)",
-  Admin:     "rgba(239,68,68,0.55)",
-  Developer: "rgba(59,130,246,0.55)",
-  User:      "rgba(156,163,175,0.45)",
+  Owner:       "rgba(249,115,22,0.55)",
+  Admin:       "rgba(239,68,68,0.55)",
+  TechSupport: "rgba(20,184,166,0.55)",
+  Developer:   "rgba(59,130,246,0.55)",
+  User:        "rgba(156,163,175,0.45)",
 };
 
 // ── Role metadata ─────────────────────────────────────────────────────────────
@@ -90,6 +101,11 @@ export const ROLE_META: Record<AppRole, { label: string; color: string; descript
     label: "Admin",
     color: "bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300",
     description: "Manage users, roles, plugins, and models",
+  },
+  TechSupport: {
+    label: "Tech Support",
+    color: "bg-teal-100 text-teal-800 dark:bg-teal-900/40 dark:text-teal-300",
+    description: "View, triage, and resolve all support tickets",
   },
   Developer: {
     label: "Developer",

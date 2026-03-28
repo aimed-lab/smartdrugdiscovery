@@ -9,7 +9,7 @@ import { cn } from "@/lib/utils";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
-type FeedbackType     = "bug" | "enhancement" | "idea";
+type FeedbackType     = "bug" | "enhancement" | "idea" | "question" | "praise";
 type FeedbackPriority = "p0" | "p1" | "p2" | "p3";
 type PanelTab         = "ask" | "feedback" | "docs";
 
@@ -24,10 +24,12 @@ interface ChatMessage { role: "user" | "assistant"; content: string; }
 
 // ── Config ────────────────────────────────────────────────────────────────────
 
-const typeConfig: Record<FeedbackType, { label: string; icon: React.ComponentType<{ className?: string }>; active: string }> = {
-  bug:         { label: "Bug",         icon: Bug,       active: "border-red-300 bg-red-50 text-red-700 dark:bg-red-950 dark:text-red-300" },
-  enhancement: { label: "Enhancement", icon: Sparkles,  active: "border-blue-300 bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-300" },
-  idea:        { label: "Idea",        icon: Lightbulb, active: "border-yellow-300 bg-yellow-50 text-yellow-700 dark:bg-yellow-950 dark:text-yellow-300" },
+const typeConfig: Record<FeedbackType, { label: string; emoji: string; icon: React.ComponentType<{ className?: string }>; active: string }> = {
+  bug:         { label: "Bug",         emoji: "🐛", icon: Bug,       active: "border-red-300 bg-red-50 text-red-700 dark:bg-red-950 dark:text-red-300" },
+  enhancement: { label: "Enhancement", emoji: "✨", icon: Sparkles,  active: "border-blue-300 bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-300" },
+  idea:        { label: "Idea",        emoji: "💡", icon: Lightbulb, active: "border-yellow-300 bg-yellow-50 text-yellow-700 dark:bg-yellow-950 dark:text-yellow-300" },
+  question:    { label: "Question",    emoji: "❓", icon: Lightbulb, active: "border-purple-300 bg-purple-50 text-purple-700 dark:bg-purple-950 dark:text-purple-300" },
+  praise:      { label: "Praise",      emoji: "🌟", icon: Sparkles,  active: "border-green-300 bg-green-50 text-green-700 dark:bg-green-950 dark:text-green-300" },
 };
 const priorityConfig: Record<FeedbackPriority, { label: string; active: string }> = {
   p0: { label: "P0 Critical", active: "border-red-300 bg-red-50 text-red-700 dark:bg-red-950 dark:text-red-300" },
@@ -365,105 +367,119 @@ export function FeedbackWidget({ user }: { user: { name: string; email: string; 
 
           {/* ── FEEDBACK TAB ─────────────────────────────────────────────── */}
           {tab === "feedback" && (
-            <div className="p-4 space-y-4">
+            <div className="p-4 space-y-3">
               {status === "success" ? (
                 <div className="py-8 text-center space-y-2">
                   <div className="text-3xl">✅</div>
-                  <p className="font-semibold">Feedback submitted!</p>
-                  <p className="text-sm text-muted-foreground">GitHub issue created for the team.</p>
+                  <p className="font-semibold">Ticket submitted!</p>
+                  <p className="text-sm text-muted-foreground">The support team will review it shortly.</p>
+                  <button onClick={resetFeedback} className="text-xs text-primary hover:underline">Submit another</button>
                 </div>
               ) : (
                 <>
-                  {/* Type */}
-                  <div>
-                    <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-2">Type</p>
-                    <div className="flex gap-2">
-                      {(Object.entries(typeConfig) as [FeedbackType, typeof typeConfig[FeedbackType]][]).map(([key, cfg]) => {
-                        const Icon = cfg.icon;
-                        return (
-                          <button key={key} onClick={() => setForm((f) => ({ ...f, type: key }))}
-                            className={cn("flex-1 flex items-center justify-center gap-1.5 rounded-lg border px-2 py-1.5 text-xs font-medium transition-colors",
-                              form.type === key ? cfg.active : "border-border text-muted-foreground hover:bg-accent")}>
-                            <Icon className="h-3.5 w-3.5" />{cfg.label}
+                  {/* Quick type chips — emoji + label, one row */}
+                  <div className="flex gap-1.5 flex-wrap">
+                    {(Object.entries(typeConfig) as [FeedbackType, typeof typeConfig[FeedbackType]][]).map(([key, cfg]) => (
+                      <button key={key} onClick={() => setForm((f) => ({ ...f, type: key }))}
+                        className={cn(
+                          "flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-medium transition-colors",
+                          form.type === key ? cfg.active : "border-border text-muted-foreground hover:bg-accent"
+                        )}>
+                        <span>{cfg.emoji}</span>{cfg.label}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Title — primary field, required */}
+                  <input
+                    type="text"
+                    value={form.title}
+                    onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
+                    placeholder={form.type === "bug" ? "Describe the bug…" : form.type === "praise" ? "What did you love?" : form.type === "question" ? "What's your question?" : "Short description…"}
+                    className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                    onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && form.title.trim() && handleSubmit()}
+                    autoFocus
+                  />
+
+                  {/* Optional details — collapsed by default */}
+                  <details className="group">
+                    <summary className="cursor-pointer text-[11px] text-muted-foreground hover:text-foreground select-none list-none flex items-center gap-1">
+                      <span className="group-open:rotate-90 transition-transform inline-block">▶</span>
+                      Add details, priority, or attachments…
+                    </summary>
+                    <div className="mt-2 space-y-3">
+                      {/* Priority */}
+                      <div className="grid grid-cols-4 gap-1">
+                        {(Object.entries(priorityConfig) as [FeedbackPriority, typeof priorityConfig[FeedbackPriority]][]).map(([key, cfg]) => (
+                          <button key={key} onClick={() => setForm((f) => ({ ...f, priority: key }))}
+                            className={cn("rounded-md border px-1 py-1 text-[10px] font-medium transition-colors",
+                              form.priority === key ? cfg.active : "border-border text-muted-foreground hover:bg-accent")}>
+                            {cfg.label}
                           </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                  {/* Priority */}
-                  <div>
-                    <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-2">Priority</p>
-                    <div className="grid grid-cols-4 gap-1.5">
-                      {(Object.entries(priorityConfig) as [FeedbackPriority, typeof priorityConfig[FeedbackPriority]][]).map(([key, cfg]) => (
-                        <button key={key} onClick={() => setForm((f) => ({ ...f, priority: key }))}
-                          className={cn("rounded-lg border px-1 py-1.5 text-[11px] font-medium transition-colors",
-                            form.priority === key ? cfg.active : "border-border text-muted-foreground hover:bg-accent")}>
-                          {cfg.label}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                  {/* Summary */}
-                  <div>
-                    <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-2">Summary *</p>
-                    <input type="text" value={form.title} onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
-                      placeholder="Brief description…"
-                      className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-                      onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && handleSubmit()} />
-                  </div>
-                  {/* Details */}
-                  <div>
-                    <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-2">Details (optional)</p>
-                    <textarea value={form.description} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
-                      placeholder="Steps to reproduce or additional context…" rows={3}
-                      className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring resize-none" />
-                  </div>
-                  {/* Attachments */}
-                  <div>
-                    <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-2">Attachments (optional)</p>
-                    <div onDragOver={(e) => { e.preventDefault(); setDragOver(true); }} onDragLeave={() => setDragOver(false)} onDrop={handleDrop}
-                      className={cn("rounded-lg border-2 border-dashed px-3 py-3 text-center transition-colors", dragOver ? "border-primary bg-primary/5" : "border-border hover:border-muted-foreground/50")}>
-                      <div className="flex items-center justify-center gap-2 flex-wrap">
-                        <button type="button" onClick={() => fileInputRef.current?.click()}
-                          className="flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-xs font-medium hover:bg-accent transition-colors">
-                          <ImagePlus className="h-3.5 w-3.5" />Gallery
-                        </button>
-                        {!recording ? (
-                          <button type="button" onClick={startRecording}
-                            className="flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-xs font-medium hover:bg-accent transition-colors">
-                            <Mic className="h-3.5 w-3.5" />Voice
-                          </button>
-                        ) : (
-                          <button type="button" onClick={stopRecording}
-                            className="flex items-center gap-1.5 rounded-md border border-red-300 bg-red-50 dark:bg-red-950 px-3 py-1.5 text-xs font-medium text-red-700 dark:text-red-300 animate-pulse">
-                            <MicOff className="h-3.5 w-3.5" />{formatSeconds(recTime)} Stop
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                    {attachments.length > 0 && (
-                      <div className="mt-2 space-y-1.5">
-                        {attachments.map((att) => (
-                          <div key={att.id} className="flex items-center gap-2 rounded-lg border p-2">
-                            {att.kind === "image" && <img src={att.dataUrl} alt={att.name} className="h-10 w-10 rounded object-cover border shrink-0" />}
-                            {att.kind === "audio" && <audio controls src={att.dataUrl} className="h-8 w-32 max-w-full shrink-0" />}
-                            {att.kind === "file" && <div className="h-8 w-8 shrink-0 rounded bg-muted flex items-center justify-center"><Paperclip className="h-4 w-4 text-muted-foreground" /></div>}
-                            <p className="text-xs truncate flex-1">{att.name}</p>
-                            <button onClick={() => removeAttachment(att.id)} className="p-1 rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10 shrink-0"><Trash2 className="h-3.5 w-3.5" /></button>
-                          </div>
                         ))}
                       </div>
-                    )}
-                  </div>
-                  <p className="text-[11px] text-muted-foreground">
-                    Page: <code className="font-mono bg-muted px-1 rounded">{currentUrl}</code>
-                    {user && <span className="ml-2">· {user.name}</span>}
+                      {/* Details textarea */}
+                      <textarea
+                        value={form.description}
+                        onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
+                        placeholder="Steps to reproduce, expected vs actual, or any extra context…"
+                        rows={3}
+                        className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring resize-none"
+                      />
+                      {/* Attachments drop zone */}
+                      <div
+                        onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+                        onDragLeave={() => setDragOver(false)}
+                        onDrop={handleDrop}
+                        className={cn("rounded-lg border-2 border-dashed px-3 py-2.5 transition-colors", dragOver ? "border-primary bg-primary/5" : "border-border hover:border-muted-foreground/50")}
+                      >
+                        <div className="flex items-center justify-center gap-2 flex-wrap">
+                          <button type="button" onClick={() => fileInputRef.current?.click()}
+                            className="flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs font-medium hover:bg-accent transition-colors">
+                            <ImagePlus className="h-3.5 w-3.5" />Screenshot
+                          </button>
+                          {!recording ? (
+                            <button type="button" onClick={startRecording}
+                              className="flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs font-medium hover:bg-accent transition-colors">
+                              <Mic className="h-3.5 w-3.5" />Voice note
+                            </button>
+                          ) : (
+                            <button type="button" onClick={stopRecording}
+                              className="flex items-center gap-1.5 rounded-md border border-red-300 bg-red-50 dark:bg-red-950 px-2.5 py-1 text-xs font-medium text-red-700 dark:text-red-300 animate-pulse">
+                              <MicOff className="h-3.5 w-3.5" />{formatSeconds(recTime)} Stop
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                      {attachments.length > 0 && (
+                        <div className="space-y-1.5">
+                          {attachments.map((att) => (
+                            <div key={att.id} className="flex items-center gap-2 rounded-lg border p-2">
+                              {att.kind === "image" && <img src={att.dataUrl} alt={att.name} className="h-8 w-8 rounded object-cover border shrink-0" />}
+                              {att.kind === "audio" && <audio controls src={att.dataUrl} className="h-7 w-28 max-w-full shrink-0" />}
+                              {att.kind === "file" && <div className="h-7 w-7 shrink-0 rounded bg-muted flex items-center justify-center"><Paperclip className="h-3.5 w-3.5 text-muted-foreground" /></div>}
+                              <p className="text-xs truncate flex-1">{att.name}</p>
+                              <button onClick={() => removeAttachment(att.id)} className="p-1 rounded text-muted-foreground hover:text-destructive shrink-0"><Trash2 className="h-3 w-3" /></button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </details>
+
+                  <p className="text-[10px] text-muted-foreground truncate">
+                    {currentUrl} {user && `· ${user.name}`}
                   </p>
                   {status === "error" && <p className="text-xs text-destructive">Submission failed — please try again.</p>}
-                  <button onClick={handleSubmit} disabled={!form.title.trim() || status === "submitting"}
-                    className="w-full flex items-center justify-center gap-2 rounded-md bg-primary text-primary-foreground px-4 py-2.5 text-sm font-medium disabled:opacity-50 hover:bg-primary/90 transition-colors">
+
+                  {/* Submit */}
+                  <button
+                    onClick={handleSubmit}
+                    disabled={!form.title.trim() || status === "submitting"}
+                    className="w-full flex items-center justify-center gap-2 rounded-md bg-primary text-primary-foreground px-4 py-2.5 text-sm font-semibold disabled:opacity-50 hover:bg-primary/90 transition-colors"
+                  >
                     <Send className="h-4 w-4" />
-                    {status === "submitting" ? "Submitting…" : `Submit${attachments.length > 0 ? ` + ${attachments.length} file${attachments.length > 1 ? "s" : ""}` : ""}`}
+                    {status === "submitting" ? "Submitting…" : `Submit${attachments.length > 0 ? ` (${attachments.length} file${attachments.length > 1 ? "s" : ""})` : ""}`}
                   </button>
                 </>
               )}
