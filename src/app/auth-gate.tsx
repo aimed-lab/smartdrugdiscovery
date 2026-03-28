@@ -84,7 +84,7 @@ interface NavGroup {
 
 const navGroups: NavGroup[] = [
   {
-    label: "Disease Biology",
+    label: "Biology",
     icon: Dna,
     items: [
       { href: "/disease-biology/target-board", label: "Target Board" },
@@ -94,7 +94,7 @@ const navGroups: NavGroup[] = [
     ],
   },
   {
-    label: "Systems Pharmacology",
+    label: "Pharmacology",
     icon: FlaskConical,
     items: [
       { href: "/pharmacology/candidates", label: "Candidate Molecules" },
@@ -104,7 +104,7 @@ const navGroups: NavGroup[] = [
     ],
   },
   {
-    label: "Clinical Development",
+    label: "Clinical",
     icon: Stethoscope,
     items: [
       { href: "/clinical/cohorts", label: "Candidate Cohorts" },
@@ -114,7 +114,7 @@ const navGroups: NavGroup[] = [
     ],
   },
   {
-    label: "Regulatory Compliance",
+    label: "Regulation",
     icon: ShieldCheck,
     items: [
       { href: "/regulatory/licensing", label: "Copyright / OSDD2 License" },
@@ -168,7 +168,7 @@ function Sidebar({
           </div>
           <div>
             <span className="font-bold text-base leading-tight block">SmartDrugDiscovery</span>
-            <span className="text-[10px] text-muted-foreground tracking-wide uppercase">faster · cheaper · personalized</span>
+            <span className="text-[10px] text-muted-foreground tracking-wide uppercase whitespace-nowrap">AIDD 2.0 · OSDD2</span>
           </div>
         </div>
       </div>
