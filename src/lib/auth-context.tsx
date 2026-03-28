@@ -15,6 +15,13 @@ export interface User {
   /** Base64 data URL for photo avatar (set when avatarType="photo") */
   avatarPhoto?: string;
   role: AppRole;
+
+  // ── Researcher / social profiles ──────────────────────────────────────────
+  orgEmail?: string;          // institutional / org email
+  orgEmailVerified?: boolean; // true once OTP flow completed
+  linkedin?: string;          // linkedin.com/in/... URL
+  twitter?: string;           // @handle
+  orcid?: string;             // 0000-0000-0000-0000
 }
 
 interface AuthContextType {

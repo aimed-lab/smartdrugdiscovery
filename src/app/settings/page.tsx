@@ -27,7 +27,7 @@ export default function SettingsPage() {
   // Org email verification state
   const [orgEmailState, setOrgEmailState] = useState<"idle" | "sending" | "sent" | "verified">("idle");
   const [orgEmailCode, setOrgEmailCode] = useState("");
-  const MOCK_CODE = "123456"; // In production this would be server-generated
+  const MOCK_CODE = "123456"; // In production this would be a server-generated OTP
 
   function handleSendOrgVerification() {
     if (!profile.orgEmail.includes("@") || profile.orgEmail === profile.email) return;
@@ -36,21 +36,37 @@ export default function SettingsPage() {
   }
 
   function handleVerifyOrgCode() {
-    if (orgEmailCode === MOCK_CODE) setOrgEmailState("verified");
+    if (orgEmailCode === MOCK_CODE) {
+      setOrgEmailState("verified");
+      // Persist verified org email immediately so it survives a page reload
+      updateUser({ orgEmail: profile.orgEmail, orgEmailVerified: true });
+    }
   }
 
+  // Save confirmation banner
+  const [saveConfirm, setSaveConfirm] = useState(false);
+
+  // Only populate form fields on initial load (when user first appears from localStorage).
+  // Using a ref flag prevents updateUser() calls (which mutate `user`) from resetting
+  // form fields the user is actively editing.
+  const profileLoaded = useRef(false);
   useEffect(() => {
-    if (user) {
+    if (user && !profileLoaded.current) {
+      profileLoaded.current = true;
       setProfile({
-        name: user.name,
-        email: user.email,
-        orgEmail: "",
-        role: user.title || user.role,
-        org: user.institution,
-        linkedin: "",
-        twitter: "",
-        orcid: "",
+        name:     user.name,
+        email:    user.email,
+        orgEmail: user.orgEmail  ?? "",
+        role:     user.title || user.role,
+        org:      user.institution,
+        linkedin: user.linkedin  ?? "",
+        twitter:  user.twitter   ?? "",
+        orcid:    user.orcid     ?? "",
       });
+      // Restore verified state if previously saved
+      if (user.orgEmailVerified && user.orgEmail) {
+        setOrgEmailState("verified");
+      }
     }
   }, [user]);
 
@@ -491,6 +507,16 @@ export default function SettingsPage() {
                 <p className="text-xs text-muted-foreground italic">Role changes take effect immediately across all pages.</p>
               </div>
 
+              {/* Save confirmation */}
+              {saveConfirm && (
+                <div className="rounded-md bg-green-100 dark:bg-green-900/30 border border-green-300 dark:border-green-700 px-4 py-2.5 text-sm text-green-800 dark:text-green-300 flex items-center justify-between">
+                  <span>✓ Profile saved to local storage</span>
+                  <span className="text-xs text-green-600 dark:text-green-400 italic ml-3">
+                    Note: persisted in your browser — a server DB can be connected later.
+                  </span>
+                </div>
+              )}
+
               <div className="flex justify-end">
                 <button
                   onClick={() => {
@@ -500,12 +526,19 @@ export default function SettingsPage() {
                       ? profile.name.split(" ").filter(Boolean).map(w => w[0]).join("").slice(0, 2).toUpperCase()
                       : user?.avatar ?? "";
                     updateUser({
-                      name: profile.name,
-                      email: profile.email,
-                      title: profile.role,
-                      institution: profile.org,
-                      avatar: newAvatar,
+                      name:             profile.name,
+                      email:            profile.email,
+                      title:            profile.role,
+                      institution:      profile.org,
+                      avatar:           newAvatar,
+                      orgEmail:         profile.orgEmail || undefined,
+                      orgEmailVerified: orgEmailState === "verified",
+                      linkedin:         profile.linkedin  || undefined,
+                      twitter:          profile.twitter   || undefined,
+                      orcid:            profile.orcid     || undefined,
                     });
+                    setSaveConfirm(true);
+                    setTimeout(() => setSaveConfirm(false), 4000);
                   }}
                   className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
                 >
