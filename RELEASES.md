@@ -8,6 +8,59 @@ Tags follow `v1.xxx` in git. Stable releases are marked ⭐.
 
 ---
 
+## v1.106 — Synchronized Role-Color Avatar, Emoji/Photo Support, Models Button Alignment
+**Date:** 2026-03-28
+**Tag:** `v1.106`
+**Commit:** `ceacc5a`
+**Status:** Stable
+
+### New Features
+
+#### `src/lib/roles.ts` (EXTENDED — single source of truth for avatar colors)
+- `ROLE_AVATAR_BG` — solid Tailwind bg+text classes for initials mode (orange/red/blue/gray)
+- `ROLE_RING` — Tailwind `ring-*` class for emoji/photo ring outline
+- `ROLE_GLOW` — CSS rgba value for `box-shadow` glow matching ring color at 55% opacity
+
+#### `src/lib/auth-context.tsx` (User interface extended)
+- `avatarType?: "initials" | "emoji" | "photo"` — controls rendering mode
+- `avatarPhoto?: string` — base64 JPEG data URL for photo mode
+- Both fields persisted to localStorage user DB
+
+#### `src/components/role-avatar.tsx` (NEW shared component)
+- Sizes: `sm` (sidebar, 32px) · `md` (medium, 56px) · `lg` (settings header, 80px)
+- **initials**: solid `ROLE_AVATAR_BG` background — unchanged look
+- **emoji**: neutral `bg-muted` + `ring-2 ROLE_RING` + CSS glow box-shadow
+- **photo**: circular `<img>` + same ring + glow
+- Used in **sidebar footer** and **Settings → Profile header** → always synchronized
+
+#### Settings → Profile — avatar editor (`src/app/settings/page.tsx`)
+- **Upload photo** → resized to 200×200 JPEG via Canvas API, stored as base64
+- **Emoji field** → type/paste any emoji, press Enter or click "Use"
+- **Use initials** → reset to auto-generated initials from name
+- Role badge shown inline next to name
+
+#### Models Catalogue — button alignment (`src/app/models/page.tsx`)
+- `<Card>` gets `flex flex-col` — cards in same row stretch to equal height
+- `<CardContent>` gets `flex flex-col flex-1`
+- Actions `<div>` gets `mt-auto` → **Install Locally / Add API Key / Set as Active** button always pinned to card bottom
+
+### Files Changed
+| File | Change type |
+|------|------------|
+| `src/lib/roles.ts` | Modified (added ROLE_AVATAR_BG, ROLE_RING, ROLE_GLOW) |
+| `src/lib/auth-context.tsx` | Modified (avatarType, avatarPhoto fields) |
+| `src/components/role-avatar.tsx` | **Created** |
+| `src/app/auth-gate.tsx` | Modified (RoleAvatar, AppRole import) |
+| `src/app/settings/page.tsx` | Modified (avatar editor, RoleAvatar header) |
+| `src/app/models/page.tsx` | Modified (flex card layout, mt-auto button) |
+
+### Rollback
+```bash
+git checkout v1.105
+```
+
+---
+
 ## v1.104 — Tool Plugins: Hugging Face Hub + Kaggle Connectors
 **Date:** 2026-03-28
 **Tag:** `v1.104`
@@ -500,6 +553,7 @@ Use this at the **end** of each session:
 
 | Tag | Status | Key feature |
 |-----|--------|-------------|
+| `v1.106` | Stable | Synchronized role avatar, emoji/photo, models button fix |
 | `v1.104` | Stable | HuggingFace + Kaggle plugin connectors |
 | `v1.103` | Stable | RELEASES.md agentic workflow guide |
 | `v1.102` | Stable | Platform config, Assets filter/sort, Settings polish |
