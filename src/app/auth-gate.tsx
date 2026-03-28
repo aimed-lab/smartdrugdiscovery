@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import { FeedbackWidget } from "@/components/feedback-widget";
 import { type AppRole } from "@/lib/roles";
+import { PLATFORM_CONFIG } from "@/lib/platform-config";
 
 // Role → avatar background color (solid, for the initials circle)
 const roleAvatarColor: Record<AppRole, string> = {
@@ -331,7 +332,7 @@ function Sidebar({
       </div>
       {/* Version */}
       <div className="px-4 py-1.5 border-t">
-        <p className="text-[10px] text-muted-foreground/40 text-right select-none">v1.100</p>
+        <p className="text-[10px] text-muted-foreground/40 text-right select-none">v{PLATFORM_CONFIG.version}</p>
       </div>
     </aside>
   );

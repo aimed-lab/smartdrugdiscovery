@@ -143,6 +143,11 @@ const projects: Project[] = [
   },
 ];
 
+// Map project name → id so Team tab links can jump to the project card
+const projectNameToId: Record<string, string> = Object.fromEntries(
+  projects.map((p) => [p.name, p.id])
+);
+
 const teamMembers: TeamMember[] = [
   {
     name: "Dr. Sarah Chen",
@@ -276,8 +281,49 @@ function dateToPercent(date: string, minDate: string, maxDate: string) {
   return Math.max(0, Math.min(100, ((d - min) / (max - min)) * 100));
 }
 
+type AssetSortKey = "name" | "type" | "project" | "date" | "size";
+
+function parseSizeMB(s: string): number {
+  const n = parseFloat(s);
+  if (s.includes("GB")) return n * 1024;
+  if (s.includes("KB")) return n / 1024;
+  return n; // MB
+}
+
 export default function ProjectsPage() {
   const [groupFilter, setGroupFilter] = useState<string>("All");
+
+  // Assets tab filter + sort state
+  const [assetTypeFilter, setAssetTypeFilter] = useState<ProjectAsset["type"] | "all">("all");
+  const [assetProjectFilter, setAssetProjectFilter] = useState<string>("all");
+  const [assetSort, setAssetSort] = useState<{ key: AssetSortKey; dir: "asc" | "desc" }>({
+    key: "date",
+    dir: "desc",
+  });
+
+  const assetProjects = Array.from(new Set(assets.map((a) => a.project)));
+  const assetTypes = (Object.keys(assetTypeConfig) as ProjectAsset["type"][]);
+
+  const filteredAssets = assets
+    .filter((a) => assetTypeFilter === "all" || a.type === assetTypeFilter)
+    .filter((a) => assetProjectFilter === "all" || a.project === assetProjectFilter)
+    .sort((a, b) => {
+      let cmp = 0;
+      if (assetSort.key === "name") cmp = a.name.localeCompare(b.name);
+      else if (assetSort.key === "type") cmp = a.type.localeCompare(b.type);
+      else if (assetSort.key === "project") cmp = a.project.localeCompare(b.project);
+      else if (assetSort.key === "date") cmp = new Date(a.date).getTime() - new Date(b.date).getTime();
+      else if (assetSort.key === "size") cmp = parseSizeMB(a.size) - parseSizeMB(b.size);
+      return assetSort.dir === "asc" ? cmp : -cmp;
+    });
+
+  function toggleSort(key: AssetSortKey) {
+    setAssetSort((prev) =>
+      prev.key === key
+        ? { key, dir: prev.dir === "asc" ? "desc" : "asc" }
+        : { key, dir: "asc" }
+    );
+  }
 
   const filteredProjects =
     groupFilter === "All" ? projects : projects.filter((p) => p.group === groupFilter);
@@ -330,7 +376,7 @@ export default function ProjectsPage() {
             {filteredProjects.map((project) => {
               const status = statusConfig[project.status];
               return (
-                <Card key={project.id} className="hover:shadow-md transition-shadow">
+                <Card key={project.id} id={project.id} className="hover:shadow-md transition-shadow scroll-mt-6">
                   <CardHeader>
                     <div className="flex items-start justify-between gap-4">
                       <div>
@@ -522,11 +568,18 @@ export default function ProjectsPage() {
                   </div>
                   <div className="border-t pt-3">
                     <p className="text-xs text-muted-foreground mb-1.5">Projects</p>
-                    {member.projects.map((proj) => (
-                      <p key={proj} className="text-sm">
-                        {proj}
-                      </p>
-                    ))}
+                    {member.projects.map((proj) => {
+                      const pid = projectNameToId[proj];
+                      return (
+                        <a
+                          key={proj}
+                          href={pid ? `/projects#${pid}` : "/projects"}
+                          className="block text-sm text-primary hover:underline underline-offset-2 leading-snug mb-0.5"
+                        >
+                          {proj}
+                        </a>
+                      );
+                    })}
                   </div>
                 </CardContent>
               </Card>
@@ -535,34 +588,106 @@ export default function ProjectsPage() {
         </TabsContent>
 
         {/* Assets Tab */}
-        <TabsContent value="assets" className="mt-6">
+        <TabsContent value="assets" className="mt-6 space-y-4">
+          {/* Filter controls */}
+          <div className="flex flex-wrap items-center gap-3">
+            {/* Type filter pills */}
+            <div className="flex flex-wrap gap-1.5">
+              <button
+                onClick={() => setAssetTypeFilter("all")}
+                className={cn(
+                  "px-3 py-1 rounded-full text-xs font-medium transition-colors",
+                  assetTypeFilter === "all"
+                    ? "bg-primary text-primary-foreground"
+                    : "bg-muted text-muted-foreground hover:bg-muted/80"
+                )}
+              >
+                All Types
+              </button>
+              {assetTypes.map((t) => (
+                <button
+                  key={t}
+                  onClick={() => setAssetTypeFilter(t)}
+                  className={cn(
+                    "px-3 py-1 rounded-full text-xs font-medium transition-colors",
+                    assetTypeFilter === t
+                      ? "bg-primary text-primary-foreground"
+                      : "bg-muted text-muted-foreground hover:bg-muted/80"
+                  )}
+                >
+                  {assetTypeConfig[t].label}
+                </button>
+              ))}
+            </div>
+
+            {/* Project dropdown */}
+            <select
+              value={assetProjectFilter}
+              onChange={(e) => setAssetProjectFilter(e.target.value)}
+              className="ml-auto rounded-md border border-input bg-background px-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-ring"
+            >
+              <option value="all">All Projects</option>
+              {assetProjects.map((p) => (
+                <option key={p} value={p}>{p}</option>
+              ))}
+            </select>
+
+            <span className="text-xs text-muted-foreground">{filteredAssets.length} asset{filteredAssets.length !== 1 ? "s" : ""}</span>
+          </div>
+
           <Card>
             <CardContent className="p-0">
               <div className="overflow-x-auto">
                 <table className="w-full min-w-[640px] text-sm">
                   <thead>
                     <tr className="border-b bg-muted/50">
-                      <th className="text-left p-4 font-medium">Name</th>
-                      <th className="text-left p-4 font-medium">Type</th>
-                      <th className="text-left p-4 font-medium">Project</th>
-                      <th className="text-left p-4 font-medium">Added By</th>
-                      <th className="text-left p-4 font-medium">Date</th>
-                      <th className="text-right p-4 font-medium">Size</th>
+                      {(
+                        [
+                          { key: "name" as AssetSortKey, label: "Name", align: "left" },
+                          { key: "type" as AssetSortKey, label: "Type", align: "left" },
+                          { key: "project" as AssetSortKey, label: "Project", align: "left" },
+                          { key: null, label: "Added By", align: "left" },
+                          { key: "date" as AssetSortKey, label: "Date", align: "left" },
+                          { key: "size" as AssetSortKey, label: "Size", align: "right" },
+                        ] as { key: AssetSortKey | null; label: string; align: string }[]
+                      ).map(({ key, label, align }) => (
+                        <th
+                          key={label}
+                          className={cn(
+                            "p-4 font-medium",
+                            align === "right" ? "text-right" : "text-left",
+                            key ? "cursor-pointer select-none hover:text-foreground" : ""
+                          )}
+                          onClick={() => key && toggleSort(key)}
+                        >
+                          <span className="inline-flex items-center gap-1">
+                            {label}
+                            {key && (
+                              <span className="text-muted-foreground/50 text-[10px]">
+                                {assetSort.key === key
+                                  ? assetSort.dir === "asc" ? "▲" : "▼"
+                                  : "⇅"}
+                              </span>
+                            )}
+                          </span>
+                        </th>
+                      ))}
                     </tr>
                   </thead>
                   <tbody>
-                    {assets.map((asset) => {
+                    {filteredAssets.length === 0 ? (
+                      <tr>
+                        <td colSpan={6} className="p-8 text-center text-muted-foreground text-sm">
+                          No assets match the current filters.
+                        </td>
+                      </tr>
+                    ) : filteredAssets.map((asset) => {
                       const typeConf = assetTypeConfig[asset.type];
                       return (
                         <tr key={asset.name} className="border-b last:border-0 hover:bg-muted/30">
-                          <td className="p-4 font-medium">{asset.name}</td>
+                          <td className="p-4 font-medium max-w-[200px] truncate">{asset.name}</td>
                           <td className="p-4">
-                            <span
-                              className={cn(
-                                "rounded-full px-2.5 py-0.5 text-xs font-medium",
-                                typeConf.className
-                              )}
-                            >
+                            <span className={cn("rounded-full px-2.5 py-0.5 text-xs font-medium", typeConf.className)}>
                               {typeConf.label}
                             </span>
                           </td>

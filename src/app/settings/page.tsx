@@ -6,6 +6,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
 import { useAuth } from "@/lib/auth-context";
+import { PLATFORM_CONFIG } from "@/lib/platform-config";
 
 export default function SettingsPage() {
   const { user, updateUser } = useAuth();
@@ -13,22 +14,47 @@ export default function SettingsPage() {
   const [profile, setProfile] = useState({
     name: "",
     email: "",
+    orgEmail: "",
     role: "",
     org: "",
+    linkedin: "",
+    twitter: "",
+    orcid: "",
   });
+
+  // Org email verification state
+  const [orgEmailState, setOrgEmailState] = useState<"idle" | "sending" | "sent" | "verified">("idle");
+  const [orgEmailCode, setOrgEmailCode] = useState("");
+  const MOCK_CODE = "123456"; // In production this would be server-generated
+
+  function handleSendOrgVerification() {
+    if (!profile.orgEmail.includes("@") || profile.orgEmail === profile.email) return;
+    setOrgEmailState("sending");
+    setTimeout(() => setOrgEmailState("sent"), 1200);
+  }
+
+  function handleVerifyOrgCode() {
+    if (orgEmailCode === MOCK_CODE) setOrgEmailState("verified");
+  }
 
   useEffect(() => {
     if (user) {
       setProfile({
         name: user.name,
         email: user.email,
+        orgEmail: "",
         role: user.title || user.role,
         org: user.institution,
+        linkedin: "",
+        twitter: "",
+        orcid: "",
       });
     }
   }, [user]);
 
   const [keyVisibility, setKeyVisibility] = useState<Record<string, boolean>>({
+    anthropic: false,
+    groq: false,
     chembl: false,
     pubmed: false,
     openai: false,
@@ -49,25 +75,49 @@ export default function SettingsPage() {
 
   const apiKeys = [
     {
-      id: "chembl",
-      name: "ChEMBL API",
-      key: "sk-chembl-xxxx-xxxx-xxxx-1234",
-      description: "Access to ChEMBL compound and bioactivity database",
-      lastUsed: "2 hours ago",
+      id: "anthropic",
+      name: "Anthropic API",
+      key: "sk-ant-api03-xxxx-xxxx-xxxx-configured",
+      description: "Claude models (Sonnet, Opus) — powers AI Chat and Foundation Models",
+      lastUsed: "Active (server-side env var)",
+      modelProvider: true,
+      serverSide: true,
     },
     {
-      id: "pubmed",
-      name: "PubMed API",
-      key: "pm-api-xxxx-xxxx-5678",
-      description: "Literature search and article retrieval",
-      lastUsed: "1 day ago",
+      id: "groq",
+      name: "Groq Cloud API",
+      key: "gsk-xxxx-xxxx-xxxx-0000",
+      description: "Llama 3.3 70B via Groq Cloud — fast inference for open models",
+      lastUsed: "Available",
+      modelProvider: true,
+      serverSide: false,
     },
     {
       id: "openai",
       name: "OpenAI API",
       key: "sk-openai-xxxx-xxxx-xxxx-9012",
-      description: "AI-powered analysis and molecular generation",
+      description: "GPT-4o and other OpenAI models for analysis and generation",
       lastUsed: "3 hours ago",
+      modelProvider: true,
+      serverSide: false,
+    },
+    {
+      id: "chembl",
+      name: "ChEMBL API",
+      key: "sk-chembl-xxxx-xxxx-xxxx-1234",
+      description: "Compound and bioactivity database (MCP server)",
+      lastUsed: "2 hours ago",
+      modelProvider: false,
+      serverSide: false,
+    },
+    {
+      id: "pubmed",
+      name: "PubMed API",
+      key: "pm-api-xxxx-xxxx-5678",
+      description: "Literature search and article retrieval (MCP server)",
+      lastUsed: "1 day ago",
+      modelProvider: false,
+      serverSide: false,
     },
     {
       id: "uniprot",
@@ -75,6 +125,8 @@ export default function SettingsPage() {
       key: "up-xxxx-xxxx-3456",
       description: "Protein sequence and functional information",
       lastUsed: "5 days ago",
+      modelProvider: false,
+      serverSide: false,
     },
     {
       id: "pdb",
@@ -82,6 +134,8 @@ export default function SettingsPage() {
       key: "pdb-xxxx-xxxx-7890",
       description: "Protein Data Bank structure access",
       lastUsed: "1 week ago",
+      modelProvider: false,
+      serverSide: false,
     },
   ];
 
@@ -156,7 +210,7 @@ export default function SettingsPage() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">Email Address</label>
+                  <label className="text-sm font-medium">Personal Email</label>
                   <input
                     type="email"
                     className={inputClass}
@@ -167,7 +221,7 @@ export default function SettingsPage() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">Role</label>
+                  <label className="text-sm font-medium">Role / Title</label>
                   <input
                     type="text"
                     className={inputClass}
@@ -187,6 +241,121 @@ export default function SettingsPage() {
                       setProfile((prev) => ({ ...prev, org: e.target.value }))
                     }
                   />
+                </div>
+              </div>
+
+              <Separator />
+
+              {/* Organization email verification */}
+              <div className="space-y-3">
+                <div>
+                  <label className="text-sm font-medium">Organization Email</label>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Verify your institutional email to unlock org-level features.
+                  </p>
+                </div>
+                <div className="flex gap-2">
+                  <input
+                    type="email"
+                    placeholder="you@university.edu"
+                    className={inputClass + " flex-1"}
+                    value={profile.orgEmail}
+                    disabled={orgEmailState === "verified"}
+                    onChange={(e) => {
+                      setProfile((prev) => ({ ...prev, orgEmail: e.target.value }));
+                      if (orgEmailState !== "idle") setOrgEmailState("idle");
+                      setOrgEmailCode("");
+                    }}
+                  />
+                  {orgEmailState === "verified" ? (
+                    <span className="flex items-center gap-1.5 rounded-md bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300 px-3 py-2 text-sm font-medium shrink-0">
+                      ✓ Verified
+                    </span>
+                  ) : (
+                    <button
+                      onClick={handleSendOrgVerification}
+                      disabled={!profile.orgEmail || orgEmailState === "sending"}
+                      className="shrink-0 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+                    >
+                      {orgEmailState === "sending" ? "Sending…" : orgEmailState === "sent" ? "Resend" : "Send Code"}
+                    </button>
+                  )}
+                </div>
+                {orgEmailState === "sent" && (
+                  <div className="flex gap-2 items-center">
+                    <input
+                      type="text"
+                      placeholder="Enter 6-digit code"
+                      maxLength={6}
+                      className={inputClass + " w-48 font-mono tracking-widest"}
+                      value={orgEmailCode}
+                      onChange={(e) => setOrgEmailCode(e.target.value.replace(/\D/g, ""))}
+                    />
+                    <button
+                      onClick={handleVerifyOrgCode}
+                      disabled={orgEmailCode.length < 6}
+                      className="rounded-md border border-input px-4 py-2 text-sm hover:bg-accent disabled:opacity-50"
+                    >
+                      Verify
+                    </button>
+                    <p className="text-xs text-muted-foreground">(demo code: 123456)</p>
+                  </div>
+                )}
+              </div>
+
+              <Separator />
+
+              {/* Social / researcher profiles */}
+              <div className="space-y-3">
+                <label className="text-sm font-medium">Researcher Profiles</label>
+                <div className="grid gap-3 md:grid-cols-3">
+                  <div className="space-y-1.5">
+                    <label className="text-xs text-muted-foreground flex items-center gap-1.5">
+                      <span className="font-bold text-[#0A66C2]">in</span> LinkedIn
+                    </label>
+                    <input
+                      type="url"
+                      placeholder="linkedin.com/in/username"
+                      className={inputClass}
+                      value={profile.linkedin}
+                      onChange={(e) => setProfile((prev) => ({ ...prev, linkedin: e.target.value }))}
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-xs text-muted-foreground flex items-center gap-1.5">
+                      <span className="font-bold">𝕏</span> X / Twitter
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="@handle"
+                      className={inputClass}
+                      value={profile.twitter}
+                      onChange={(e) => setProfile((prev) => ({ ...prev, twitter: e.target.value }))}
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-xs text-muted-foreground flex items-center gap-1.5">
+                      <span className="font-bold text-[#A6CE39]">ID</span> ORCID iD
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="0000-0000-0000-0000"
+                      pattern="\d{4}-\d{4}-\d{4}-\d{3}[\dX]"
+                      className={inputClass + " font-mono"}
+                      value={profile.orcid}
+                      onChange={(e) => setProfile((prev) => ({ ...prev, orcid: e.target.value }))}
+                    />
+                    {profile.orcid && (
+                      <a
+                        href={`https://orcid.org/${profile.orcid}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-[10px] text-primary underline underline-offset-2"
+                      >
+                        View ORCID profile ↗
+                      </a>
+                    )}
+                  </div>
                 </div>
               </div>
 
@@ -239,27 +408,70 @@ export default function SettingsPage() {
               <CardHeader>
                 <CardTitle>API Keys</CardTitle>
                 <CardDescription>
-                  Manage your API keys for external data sources and services
+                  Manage keys for AI model providers and external data sources. Keys marked <span className="font-semibold text-primary">Foundation Model</span> are selectable in the <a href="/models" className="text-primary underline underline-offset-2">Foundation Models</a> page.
                 </CardDescription>
               </CardHeader>
             </Card>
 
-            {apiKeys.map((apiKey) => (
+            {/* AI Model Provider Keys */}
+            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide px-1">AI Model Providers</p>
+            {apiKeys.filter((k) => k.modelProvider).map((apiKey) => (
               <Card key={apiKey.id}>
-                <CardContent className="flex items-center justify-between py-4">
-                  <div className="space-y-1">
+                <CardContent className="flex items-center justify-between py-4 gap-4">
+                  <div className="space-y-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <p className="text-sm font-medium">{apiKey.name}</p>
+                      <span className="rounded-full bg-primary/10 text-primary px-2 py-0.5 text-[10px] font-medium">Foundation Model</span>
+                      {apiKey.serverSide && (
+                        <span className="rounded-full bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300 px-2 py-0.5 text-[10px] font-medium">✓ Server env var</span>
+                      )}
+                    </div>
+                    <p className="text-xs text-muted-foreground">{apiKey.description}</p>
+                    {apiKey.serverSide ? (
+                      <p className="text-xs text-muted-foreground italic">Configured as Vercel environment variable — not exposed to client</p>
+                    ) : (
+                      <code className="text-xs bg-muted px-2 py-0.5 rounded">
+                        {maskKey(apiKey.key, keyVisibility[apiKey.id])}
+                      </code>
+                    )}
+                    <p className="text-xs text-muted-foreground">Status: {apiKey.lastUsed}</p>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    {!apiKey.serverSide && (
+                      <>
+                        <button
+                          onClick={() => toggleKeyVisibility(apiKey.id)}
+                          className="rounded-md border border-input px-3 py-1.5 text-sm hover:bg-accent"
+                        >
+                          {keyVisibility[apiKey.id] ? "Hide" : "Show"}
+                        </button>
+                        <button className="text-sm text-destructive hover:bg-destructive/10 rounded-md px-3 py-1.5">
+                          Rotate
+                        </button>
+                      </>
+                    )}
+                    {apiKey.serverSide && (
+                      <span className="text-xs text-muted-foreground">Manage in Vercel</span>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+
+            {/* Data Source Keys */}
+            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide px-1 pt-2">Data Sources & Services</p>
+            {apiKeys.filter((k) => !k.modelProvider).map((apiKey) => (
+              <Card key={apiKey.id}>
+                <CardContent className="flex items-center justify-between py-4 gap-4">
+                  <div className="space-y-1 min-w-0">
                     <p className="text-sm font-medium">{apiKey.name}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {apiKey.description}
-                    </p>
+                    <p className="text-xs text-muted-foreground">{apiKey.description}</p>
                     <code className="text-xs bg-muted px-2 py-0.5 rounded">
                       {maskKey(apiKey.key, keyVisibility[apiKey.id])}
                     </code>
-                    <p className="text-xs text-muted-foreground">
-                      Last used: {apiKey.lastUsed}
-                    </p>
+                    <p className="text-xs text-muted-foreground">Last used: {apiKey.lastUsed}</p>
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 shrink-0">
                     <button
                       onClick={() => toggleKeyVisibility(apiKey.id)}
                       className="rounded-md border border-input px-3 py-1.5 text-sm hover:bg-accent"
@@ -542,19 +754,23 @@ export default function SettingsPage() {
               <dl className="space-y-4">
                 <div className="flex justify-between">
                   <dt className="text-sm text-muted-foreground">Platform</dt>
-                  <dd className="text-sm font-medium">SmartDrugDiscovery</dd>
+                  <dd className="text-sm font-medium">{PLATFORM_CONFIG.name}</dd>
                 </div>
                 <div className="flex justify-between">
                   <dt className="text-sm text-muted-foreground">Version</dt>
-                  <dd className="text-sm font-medium">1.0.0-beta</dd>
+                  <dd className="text-sm font-medium">v{PLATFORM_CONFIG.version}</dd>
                 </div>
                 <div className="flex justify-between">
                   <dt className="text-sm text-muted-foreground">Build</dt>
-                  <dd className="text-sm font-medium">2026.03.25</dd>
+                  <dd className="text-sm font-medium">{PLATFORM_CONFIG.build}</dd>
                 </div>
                 <div className="flex justify-between">
                   <dt className="text-sm text-muted-foreground">License</dt>
-                  <dd className="text-sm font-medium">Enterprise</dd>
+                  <dd className="text-sm font-medium">{PLATFORM_CONFIG.license}</dd>
+                </div>
+                <div className="flex justify-between">
+                  <dt className="text-sm text-muted-foreground">Institution</dt>
+                  <dd className="text-sm font-medium">UAB Systems Pharmacology AI Research Center</dd>
                 </div>
               </dl>
 
@@ -563,15 +779,7 @@ export default function SettingsPage() {
               <div className="space-y-3">
                 <h3 className="text-sm font-medium">Tech Stack</h3>
                 <div className="flex flex-wrap gap-2">
-                  {[
-                    "Next.js 14",
-                    "React 18",
-                    "TypeScript",
-                    "Tailwind CSS",
-                    "Radix UI",
-                    "Recharts",
-                    "Prisma",
-                  ].map((tech) => (
+                  {PLATFORM_CONFIG.techStack.map((tech) => (
                     <span
                       key={tech}
                       className="rounded-full bg-muted px-3 py-1 text-xs font-medium"
@@ -585,7 +793,7 @@ export default function SettingsPage() {
               <Separator />
 
               <p className="text-sm text-muted-foreground">
-                &copy; 2026 PharmaTech Research Inc. All rights reserved.
+                {PLATFORM_CONFIG.copyright}
               </p>
             </CardContent>
           </Card>
