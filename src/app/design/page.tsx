@@ -209,35 +209,65 @@ export default function DesignPage() {
   const [messages, setMessages] = useState<Message[]>(initialMessages);
   const [inputValue, setInputValue] = useState("");
   const [selectedModel, setSelectedModel] = useState("Drug-GPT");
+  const [isThinking, setIsThinking] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+  }, [messages, isThinking]);
 
-  const handleSend = () => {
-    if (!inputValue.trim()) return;
+  const handleSend = async () => {
+    const text = inputValue.trim();
+    if (!text || isThinking) return;
 
     const userMessage: Message = {
       id: `msg-${Date.now()}`,
       role: "user",
-      content: inputValue.trim(),
+      content: text,
       timestamp: new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }),
     };
 
     setMessages((prev) => [...prev, userMessage]);
     setInputValue("");
+    setIsThinking(true);
 
-    setTimeout(() => {
+    // Build history for context (last 6 messages)
+    const history = messages.slice(-6).map((m) => ({
+      role: m.role as "user" | "assistant",
+      content: m.content,
+    }));
+
+    try {
+      const res = await fetch("/api/assistant", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          question: text,
+          pageContext: `Design with AI — DMBT Cycle — selected model: ${selectedModel}`,
+          history,
+        }),
+      });
+      const data = await res.json() as { answer?: string; error?: string };
       const assistantMessage: Message = {
         id: `msg-${Date.now() + 1}`,
         role: "assistant",
-        content:
-          "I'm analyzing your query using the DMBT framework. In production, this would connect to the selected AI model for real-time design assistance across the Design-Make-Build-Test cycle.",
+        content: data.answer ?? "Sorry, I couldn't get a response. Please try again.",
         timestamp: new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }),
       };
       setMessages((prev) => [...prev, assistantMessage]);
-    }, 1000);
+    } catch {
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: `msg-${Date.now() + 1}`,
+          role: "assistant",
+          content: "Network error — please check your connection and try again.",
+          timestamp: new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }),
+        },
+      ]);
+    } finally {
+      setIsThinking(false);
+    }
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -424,6 +454,19 @@ export default function DesignPage() {
                 </div>
               )
             )}
+            {/* Thinking indicator */}
+            {isThinking && (
+              <div className="flex justify-start">
+                <div>
+                  <div className="text-xs text-muted-foreground mb-1">{selectedModel}</div>
+                  <div className="bg-muted rounded-2xl rounded-bl-sm px-4 py-3 flex items-center gap-1.5">
+                    <span className="h-2 w-2 rounded-full bg-muted-foreground/60 animate-bounce [animation-delay:0ms]" />
+                    <span className="h-2 w-2 rounded-full bg-muted-foreground/60 animate-bounce [animation-delay:150ms]" />
+                    <span className="h-2 w-2 rounded-full bg-muted-foreground/60 animate-bounce [animation-delay:300ms]" />
+                  </div>
+                </div>
+              </div>
+            )}
             <div ref={messagesEndRef} />
           </div>
 
@@ -431,19 +474,20 @@ export default function DesignPage() {
           <div className="border-t p-4">
             <div className="flex items-end">
               <textarea
-                className="flex-1 rounded-lg border border-input bg-background px-4 py-3 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-ring"
+                className="flex-1 rounded-lg border border-input bg-background px-4 py-3 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-60"
                 rows={2}
                 placeholder="Ask about drug design, synthesis routes, or the DMBT cycle..."
                 value={inputValue}
                 onChange={(e) => setInputValue(e.target.value)}
                 onKeyDown={handleKeyDown}
+                disabled={isThinking}
               />
               <button
                 className="rounded-lg bg-primary text-primary-foreground px-4 py-3 hover:bg-primary/90 disabled:opacity-50 ml-2"
-                disabled={!inputValue.trim()}
-                onClick={handleSend}
+                disabled={!inputValue.trim() || isThinking}
+                onClick={() => void handleSend()}
               >
-                Send
+                {isThinking ? "…" : "Send"}
               </button>
             </div>
           </div>
