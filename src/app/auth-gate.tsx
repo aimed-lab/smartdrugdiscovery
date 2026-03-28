@@ -271,8 +271,8 @@ function Sidebar({
           {access("models")  !== "hidden" && <NavItem href="/models"   label="Foundation Models"  icon={BrainCircuit} onNavigate={onClose} locked={access("models")  === "partial"} />}
           {access("services")!== "hidden" && <NavItem href="/services" label="Add-on Service"     icon={Package}      onNavigate={onClose} locked={access("services")=== "partial"} />}
           {access("plugins") !== "hidden" && <NavItem href="/plugins"  label="Tool Plugins"       icon={Puzzle}       onNavigate={onClose} locked={access("plugins") === "partial"} />}
-          {access("support") !== "hidden" && hasRole(user?.role, "TechSupport") && (
-            <NavItem href="/support" label="Support Dashboard" icon={Headset} onNavigate={onClose} locked={access("support") === "partial"} />
+          {access("support") !== "hidden" && (
+            <NavItem href="/support" label="Support" icon={Headset} onNavigate={onClose} locked={access("support") === "partial"} />
           )}
           {hasRole(user?.role, "Developer") && (
             <NavItem href="/security" label="Security & Compliance" icon={ShieldAlert} onNavigate={onClose} />
