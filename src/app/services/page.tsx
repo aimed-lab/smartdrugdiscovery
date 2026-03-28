@@ -316,6 +316,7 @@ export default function ServicesPage() {
         <TabsList>
           <TabsTrigger value="agents">AI Agents</TabsTrigger>
           <TabsTrigger value="experts">Human Experts</TabsTrigger>
+          <TabsTrigger value="office">Office Tools</TabsTrigger>
           <TabsTrigger value="create">Create Agent</TabsTrigger>
         </TabsList>
 
@@ -501,6 +502,11 @@ export default function ServicesPage() {
             ))}
           </div>
         </TabsContent>
+        {/* Office Tools Tab */}
+        <TabsContent value="office">
+          <OfficeToolsSection />
+        </TabsContent>
+
         {/* Create Agent Tab */}
         <TabsContent value="create">
           <CreateAgentSection />
@@ -778,6 +784,235 @@ function CreateAgentSection() {
           </div>
         </CardContent>
       </Card>
+    </div>
+  );
+}
+
+// ── Office Tools ──────────────────────────────────────────────────────────────
+
+interface OfficeTool {
+  id: string;
+  name: string;
+  logo: string;          // emoji or initials
+  logoColor: string;
+  description: string;
+  permissions: string[]; // minimal permissions requested
+  category: "Productivity" | "Storage" | "Communication" | "Automation" | "Media";
+  connected: boolean;
+  authType: "oauth" | "api-key" | "embed";
+}
+
+const officeTools: OfficeTool[] = [
+  {
+    id: "notion",
+    name: "Notion",
+    logo: "N",
+    logoColor: "bg-gray-800 text-white",
+    description: "Link Notion workspaces to sync project notes, SOPs, and meeting summaries",
+    permissions: ["Read/write selected pages only", "No bulk workspace access", "No private pages"],
+    category: "Productivity",
+    connected: false,
+    authType: "oauth",
+  },
+  {
+    id: "google-drive",
+    name: "Google Drive",
+    logo: "GD",
+    logoColor: "bg-blue-500 text-white",
+    description: "Access Google Drive files you explicitly share for import into projects",
+    permissions: ["Access only files you select", "No browsing full Drive", "No deletion rights"],
+    category: "Storage",
+    connected: false,
+    authType: "oauth",
+  },
+  {
+    id: "onedrive",
+    name: "OneDrive",
+    logo: "OD",
+    logoColor: "bg-sky-500 text-white",
+    description: "Import files from OneDrive and sync reports back to selected folders",
+    permissions: ["Read/write selected folders only", "No account-level access", "No email access"],
+    category: "Storage",
+    connected: false,
+    authType: "oauth",
+  },
+  {
+    id: "box",
+    name: "BOX",
+    logo: "B",
+    logoColor: "bg-blue-700 text-white",
+    description: "Access BOX-hosted documents and compound libraries for regulated storage",
+    permissions: ["Selected folder access only", "Read-only by default", "Audit log preserved"],
+    category: "Storage",
+    connected: false,
+    authType: "oauth",
+  },
+  {
+    id: "gmail",
+    name: "Gmail",
+    logo: "G",
+    logoColor: "bg-red-500 text-white",
+    description: "Send platform notifications and experiment summaries via Gmail",
+    permissions: ["Send-only (no read access)", "No inbox scanning", "Unsubscribe anytime"],
+    category: "Communication",
+    connected: false,
+    authType: "oauth",
+  },
+  {
+    id: "calendar",
+    name: "Google Calendar",
+    logo: "Cal",
+    logoColor: "bg-green-600 text-white",
+    description: "Schedule experiment runs, milestone reviews, and team syncs",
+    permissions: ["Read free/busy only", "Write new events only", "No existing event access"],
+    category: "Productivity",
+    connected: false,
+    authType: "oauth",
+  },
+  {
+    id: "zapier",
+    name: "Zapier",
+    logo: "Z",
+    logoColor: "bg-orange-500 text-white",
+    description: "Trigger automated workflows when experiments complete or milestones are hit",
+    permissions: ["Outbound webhooks only", "No inbound data stored", "Per-trigger authorization"],
+    category: "Automation",
+    connected: false,
+    authType: "api-key",
+  },
+  {
+    id: "readai",
+    name: "read.ai",
+    logo: "R",
+    logoColor: "bg-purple-600 text-white",
+    description: "Import meeting intelligence from lab meetings to auto-generate action items",
+    permissions: ["Meeting summaries only", "No audio/video stored", "Speaker labels anonymized"],
+    category: "Productivity",
+    connected: false,
+    authType: "oauth",
+  },
+  {
+    id: "youtube",
+    name: "YouTube",
+    logo: "YT",
+    logoColor: "bg-red-600 text-white",
+    description: "Embed scientific talks, assay protocols, and conference recordings in projects",
+    permissions: ["Public video embed only", "No account login required", "No viewing history"],
+    category: "Media",
+    connected: false,
+    authType: "embed",
+  },
+];
+
+const categoryColors: Record<OfficeTool["category"], string> = {
+  Productivity:  "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300",
+  Storage:       "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300",
+  Communication: "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300",
+  Automation:    "bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300",
+  Media:         "bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300",
+};
+
+const authLabels: Record<OfficeTool["authType"], string> = {
+  oauth:   "OAuth 2.0",
+  "api-key": "API Key",
+  embed:   "No auth",
+};
+
+function OfficeToolsSection() {
+  const [connected, setConnected] = useState<Set<string>>(new Set());
+  const [catFilter, setCatFilter] = useState<string>("All");
+
+  const categories = ["All", "Productivity", "Storage", "Communication", "Automation", "Media"];
+  const filtered = catFilter === "All" ? officeTools : officeTools.filter(t => t.category === catFilter);
+
+  return (
+    <div className="space-y-6">
+      {/* Privacy notice banner */}
+      <div className="rounded-lg border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-950/20 px-4 py-3 text-xs text-blue-800 dark:text-blue-300">
+        <span className="font-semibold">Minimal permissions: </span>
+        Each integration requests only the access strictly required for its function. File contents are processed transiently and never stored. See <a href="/settings?tab=privacy" className="underline underline-offset-2">Privacy & Legal</a> for full details.
+      </div>
+
+      {/* Category filter */}
+      <div className="flex flex-wrap gap-2">
+        {categories.map((cat) => (
+          <button
+            key={cat}
+            onClick={() => setCatFilter(cat)}
+            className={cn(
+              "rounded-full px-3 py-1.5 text-sm font-medium transition-colors",
+              catFilter === cat ? "bg-primary text-primary-foreground" : "bg-secondary text-secondary-foreground hover:bg-secondary/80"
+            )}
+          >
+            {cat}
+          </button>
+        ))}
+      </div>
+
+      {/* Tool grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 items-stretch">
+        {filtered.map((tool) => {
+          const isConnected = connected.has(tool.id);
+          return (
+            <Card key={tool.id} className={cn("flex flex-col", isConnected && "border-green-200 dark:border-green-800")}>
+              <CardHeader className="pb-3">
+                <div className="flex items-start gap-3">
+                  {/* Logo */}
+                  <div className={cn("h-10 w-10 rounded-lg flex items-center justify-center text-xs font-bold shrink-0", tool.logoColor)}>
+                    {tool.logo}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <CardTitle className="text-sm font-semibold truncate">{tool.name}</CardTitle>
+                      <span className={cn("rounded-full px-2 py-0.5 text-[10px] font-medium shrink-0", categoryColors[tool.category])}>
+                        {tool.category}
+                      </span>
+                    </div>
+                    <span className="text-[10px] text-muted-foreground">{authLabels[tool.authType]}</span>
+                  </div>
+                </div>
+                <CardDescription className="text-xs line-clamp-2 mt-1">{tool.description}</CardDescription>
+              </CardHeader>
+
+              <CardContent className="flex flex-col flex-1 pb-4 space-y-3">
+                {/* Permissions */}
+                <div>
+                  <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide mb-1.5">Permissions requested</p>
+                  <ul className="space-y-0.5">
+                    {tool.permissions.map((p) => (
+                      <li key={p} className="text-xs text-muted-foreground flex items-start gap-1.5">
+                        <span className="text-green-500 mt-0.5 shrink-0">✓</span>
+                        <span className="truncate" title={p}>{p}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+
+                {/* Connect button */}
+                <button
+                  onClick={() => setConnected(prev => {
+                    const n = new Set(prev);
+                    n.has(tool.id) ? n.delete(tool.id) : n.add(tool.id);
+                    return n;
+                  })}
+                  className={cn(
+                    "w-full mt-auto rounded-md px-4 py-2 text-sm font-medium transition-colors flex items-center justify-center gap-2",
+                    isConnected
+                      ? "border border-green-500 text-green-700 bg-green-50 dark:bg-green-950/20"
+                      : "bg-primary text-primary-foreground hover:bg-primary/90"
+                  )}
+                >
+                  {isConnected ? (
+                    <><span className="h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse" /> Connected</>
+                  ) : (
+                    tool.authType === "embed" ? "Enable Embed" : `Connect via ${authLabels[tool.authType]}`
+                  )}
+                </button>
+              </CardContent>
+            </Card>
+          );
+        })}
+      </div>
     </div>
   );
 }

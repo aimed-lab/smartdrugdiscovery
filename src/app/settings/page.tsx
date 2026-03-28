@@ -117,6 +117,7 @@ export default function SettingsPage() {
           <TabsTrigger value="api-keys">API Keys</TabsTrigger>
           <TabsTrigger value="preferences">Preferences</TabsTrigger>
           <TabsTrigger value="data">Data</TabsTrigger>
+          <TabsTrigger value="privacy">Privacy & Legal</TabsTrigger>
           <TabsTrigger value="about">About</TabsTrigger>
         </TabsList>
 
@@ -187,6 +188,28 @@ export default function SettingsPage() {
                     }
                   />
                 </div>
+              </div>
+
+              <Separator />
+
+              <div className="space-y-3">
+                <div>
+                  <label className="text-sm font-medium">Platform Access Role</label>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Your role controls which features and settings are visible. Contact an Admin to change your organization role.
+                  </p>
+                </div>
+                <select
+                  value={user?.role ?? "User"}
+                  onChange={(e) => updateUser({ role: e.target.value as import("@/lib/roles").AppRole })}
+                  className={inputClass}
+                >
+                  <option value="Owner">Owner — Full control: org settings, billing, transfer</option>
+                  <option value="Admin">Admin — Manage users, roles, plugins, and models</option>
+                  <option value="Developer">Developer — Install and configure MCP servers, view API keys</option>
+                  <option value="User">User — Browse, install free plugins, add personal API keys</option>
+                </select>
+                <p className="text-xs text-muted-foreground italic">Role changes take effect immediately across all pages.</p>
               </div>
 
               <div className="flex justify-end">
@@ -457,6 +480,50 @@ export default function SettingsPage() {
                 <p className="text-xs text-muted-foreground">
                   Last backup: March 25, 2026 at 2:30 PM UTC
                 </p>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Privacy & Legal Tab */}
+        <TabsContent value="privacy" className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Privacy Notice</CardTitle>
+              <CardDescription>How SmartDrugDiscovery collects, uses, and protects your data</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-5 text-sm text-muted-foreground leading-relaxed">
+              <div className="space-y-2">
+                <h3 className="font-semibold text-foreground text-sm">Analytics & Usage Data</h3>
+                <p>SmartDrugDiscovery collects <strong className="text-foreground">anonymized, aggregated</strong> usage analytics — including page visits, feature interactions, session durations, and error rates — solely to improve platform performance and user experience. No personally identifiable information (PII), patient data, proprietary compound structures, or research results are included in these analytics.</p>
+              </div>
+              <Separator />
+              <div className="space-y-2">
+                <h3 className="font-semibold text-foreground text-sm">Product Improvement</h3>
+                <p>Anonymized interaction patterns may be used internally for model training, UI optimization, and feature prioritization. All such use is aggregated across users and cannot be traced back to any individual or institution. You may opt out of analytics collection at any time in the Preferences tab.</p>
+              </div>
+              <Separator />
+              <div className="space-y-2">
+                <h3 className="font-semibold text-foreground text-sm">Third-Party Integrations</h3>
+                <p>Office and productivity integrations (Google Drive, OneDrive, Notion, Gmail, etc.) operate under their respective providers&apos; privacy policies. SmartDrugDiscovery requests only the <strong className="text-foreground">minimum permissions</strong> necessary for each integration to function. File contents accessed through integrations are processed transiently and are never stored, indexed, or shared beyond the immediate session operation.</p>
+              </div>
+              <Separator />
+              <div className="space-y-2">
+                <h3 className="font-semibold text-foreground text-sm">Research Data</h3>
+                <p>Compound libraries, assay results, target data, and all research assets you upload or generate remain exclusively yours. SmartDrugDiscovery does not claim ownership of, license to, or access rights over your proprietary research data beyond what is required to render the platform&apos;s services to you.</p>
+              </div>
+              <Separator />
+              <div className="space-y-2">
+                <h3 className="font-semibold text-foreground text-sm">Legal Disclaimer</h3>
+                <p>SmartDrugDiscovery is provided as a research productivity platform and does not constitute medical, clinical, or regulatory advice. The platform is not liable for decisions made based on computational predictions, AI-generated outputs, or literature summaries. Outputs should be validated through appropriate experimental and regulatory processes before clinical use.</p>
+                <p>Use of this platform is governed by applicable federal and state laws, including but not limited to HIPAA (for clinical data), GDPR (for EU users), and institutional data governance policies. Users are responsible for ensuring their use of the platform complies with applicable regulations at their institution.</p>
+                <p>To the maximum extent permitted by applicable law, SmartDrugDiscovery disclaims all liability for indirect, incidental, or consequential damages arising from use of the platform or its AI-generated outputs.</p>
+              </div>
+              <Separator />
+              <div className="space-y-2">
+                <h3 className="font-semibold text-foreground text-sm">Contact</h3>
+                <p>For privacy inquiries, data deletion requests, or compliance questions, contact: <a href="mailto:privacy@smartdrugdiscovery.org" className="text-primary underline underline-offset-2">privacy@smartdrugdiscovery.org</a></p>
+                <p className="text-xs">Last updated: March 28, 2026 · Effective for all platform versions ≥ v1.100</p>
               </div>
             </CardContent>
           </Card>

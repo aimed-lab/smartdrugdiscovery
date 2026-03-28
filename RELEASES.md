@@ -5,6 +5,30 @@ Tags follow `v1.xxx` in git. Stable releases are marked ⭐.
 
 ---
 
+## ⭐ v1.100 — Major Release: Enterprise Platform
+**Date:** 2026-03-28
+**Tag:** `v1.100`
+**Status:** Stable ⭐
+
+### Highlights
+- **Enterprise RBAC** with Owner/Admin/Developer/User roles (GitHub-style)
+- **Plugin Test Modal** with live animated MCP tool call verification
+- **Models Leaderboard** — Arena ELO, HF stars, cost-per-provider, sortable
+- **Projects nav** converted to collapsible group: Directory · Team · Performance · Reports
+- **A.G.E. scores** (Activity · Goal · Execution) on all project cards
+- **Talent Knowledge Graph MCP** — Excel upload + KG query → candidate team members
+- **Office Tools tab** — Notion, Google Drive, OneDrive, BOX, Gmail, Calendar, Zapier, read.ai, YouTube
+- **Privacy & Legal** settings tab with full data use disclosure and legal disclaimers
+- **Sidebar** cleaned up: role switcher moved to Settings → Profile; system version (v1.100) shown in footer
+- **Card alignment** — all service cards use flex-col with pinned stats rows and line-clamp titles
+- **Design with AI** — DMBT flywheel replaced with clean 4-card phase grid
+- **Uninstall plugin** — trash icon + "type yes to confirm" safety modal
+- **Regulation nav** — IRB Protocols + Clinical Trial Documents added
+- All models remote-only (Llama via Groq API, no local deployment)
+- Vercel ANTHROPIC_API_KEY confirmed — AI Chat now uses live Claude completions
+
+---
+
 ## v1.007 — Enterprise RBAC, Plugin Test Modal, Models Leaderboard
 **Date:** 2026-03-28
 **Tag:** `v1.007`

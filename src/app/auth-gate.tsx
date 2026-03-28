@@ -8,7 +8,6 @@ import {
   Dna, FlaskConical, Stethoscope, ShieldCheck,
   Sparkles, Package, Puzzle, FolderOpen, BrainCircuit,
 } from "lucide-react";
-import { ROLE_META, type AppRole } from "@/lib/roles";
 import { FeedbackWidget } from "@/components/feedback-widget";
 
 export function AuthGate({ children }: { children: React.ReactNode }) {
@@ -309,58 +308,14 @@ function Sidebar({
                 </svg>
               </button>
             </div>
-            {/* Role badge + demo switcher */}
-            <RoleSwitcher />
           </div>
         )}
       </div>
+      {/* Version */}
+      <div className="px-4 py-1.5 border-t">
+        <p className="text-[10px] text-muted-foreground/40 text-right select-none">v1.100</p>
+      </div>
     </aside>
-  );
-}
-
-function RoleSwitcher() {
-  const { user, updateUser } = useAuth();
-  const [open, setOpen] = useState(false);
-  if (!user) return null;
-  const meta = ROLE_META[user.role];
-  const roles: AppRole[] = ["Owner", "Admin", "Developer", "User"];
-  return (
-    <div className="relative">
-      <button
-        onClick={() => setOpen(!open)}
-        title="Switch role (demo)"
-        className={cn(
-          "inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[10px] font-semibold transition-colors",
-          meta.color
-        )}
-      >
-        {meta.label}
-        <svg className="h-2.5 w-2.5 opacity-60" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-          <path d="M6 9l6 6 6-6" />
-        </svg>
-      </button>
-      {open && (
-        <div className="absolute bottom-full left-0 mb-1 z-50 bg-card border rounded-lg shadow-lg py-1 min-w-[180px]">
-          <p className="px-3 py-1 text-[10px] text-muted-foreground font-medium uppercase tracking-wide">Switch role (demo)</p>
-          {roles.map((r) => {
-            const m = ROLE_META[r];
-            return (
-              <button
-                key={r}
-                onClick={() => { updateUser({ role: r }); setOpen(false); }}
-                className={cn(
-                  "w-full text-left px-3 py-1.5 text-xs flex items-center gap-2 hover:bg-muted transition-colors",
-                  user.role === r && "font-semibold"
-                )}
-              >
-                <span className={cn("rounded-full px-1.5 py-0.5 text-[10px] font-medium", m.color)}>{r}</span>
-                <span className="text-muted-foreground text-[10px] truncate">{m.description}</span>
-              </button>
-            );
-          })}
-        </div>
-      )}
-    </div>
   );
 }
 
