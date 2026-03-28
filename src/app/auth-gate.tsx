@@ -165,6 +165,16 @@ function Sidebar({
   const [fontSize, setFontSize] = useState<0 | 1 | 2>(0);
   const [moduleAccess, setModuleAccess] = useState<ModuleAccessConfig>({});
 
+  // Sync dark-mode state with persisted preference on mount
+  useEffect(() => {
+    const saved = localStorage.getItem("sdd-theme");
+    const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+    const isDark = saved === "dark" || (!saved && prefersDark);
+    setDarkMode(isDark);
+    if (isDark) document.documentElement.classList.add("dark");
+    else document.documentElement.classList.remove("dark");
+  }, []);
+
   // Load module access config from localStorage (admin-configurable)
   useEffect(() => { setModuleAccess(loadModuleAccess()); }, []);
 
@@ -172,8 +182,15 @@ function Sidebar({
   const access = (key: ModuleKey) => getAccess(moduleAccess, user?.role, key);
 
   const toggleTheme = () => {
-    setDarkMode(!darkMode);
-    document.documentElement.classList.toggle("dark");
+    const next = !darkMode;
+    setDarkMode(next);
+    if (next) {
+      document.documentElement.classList.add("dark");
+      localStorage.setItem("sdd-theme", "dark");
+    } else {
+      document.documentElement.classList.remove("dark");
+      localStorage.setItem("sdd-theme", "light");
+    }
   };
 
   const setSize = (level: 0 | 1 | 2) => {
