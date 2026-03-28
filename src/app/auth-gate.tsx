@@ -6,7 +6,7 @@ import LoginPage from "./login/page";
 import { cn } from "@/lib/utils";
 import {
   Dna, FlaskConical, Stethoscope, ShieldCheck,
-  Sparkles, Package, Puzzle, FolderOpen,
+  Sparkles, Package, Puzzle, FolderOpen, BrainCircuit,
 } from "lucide-react";
 import { FeedbackWidget } from "@/components/feedback-widget";
 
@@ -221,6 +221,7 @@ function Sidebar({
         {/* Utilities */}
         <div className="mt-3 pt-2 border-t space-y-0.5">
           <NavItem href="/design" label="Design with AI" icon={Sparkles} onNavigate={onClose} />
+          <NavItem href="/models" label="Foundation Models" icon={BrainCircuit} onNavigate={onClose} />
           <NavItem href="/services" label="Add-on Service" icon={Package} onNavigate={onClose} />
           <NavItem href="/plugins" label="Tool Plugins" icon={Puzzle} onNavigate={onClose} />
         </div>

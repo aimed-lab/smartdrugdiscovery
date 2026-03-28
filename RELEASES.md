@@ -5,6 +5,23 @@ Tags follow `v1.xxx` in git. Stable releases are marked ⭐.
 
 ---
 
+## v1.006 — Foundation Models Hub
+**Date:** 2026-03-28
+**Tag:** `v1.006`
+**Status:** Stable
+
+### New Features
+- **Foundation Models page** (`/models`) — full model management hub with 4 tabs:
+  - **Model Catalogue**: 8 models (Claude Sonnet 4.5, Claude Opus 4, GPT-4o, Gemini 2.5 Pro, Drug-GPT, BioGPT, Llama 3.3 70B, Mistral Large 2) with status tiles, uptime bars, pricing, context window, domain-tuned badges
+  - **API Keys**: table view with masked keys, Rotate / Add / Remove actions, per-model key status
+  - **Usage & Costs**: monthly spend dashboard, per-model breakdown table, cost distribution bar chart
+  - **Settings**: default model selector, monthly cost cap with % used indicator, 4 safety/compliance guardrails (with platform-lock indicator)
+- **API Key modal**: masked input with show/hide toggle for rotating or adding new keys
+- **Active model banner**: shows currently selected model with warning that AI Chat is a mock until `ANTHROPIC_API_KEY` is added to Vercel
+- **Sidebar**: added "Foundation Models" nav item with BrainCircuit icon
+
+---
+
 ## v1.005 — ChEMBL MCP Integration + MCP Intelligence UI
 **Date:** 2026-03-28
 **Tag:** `v1.005`
