@@ -389,6 +389,83 @@ function CredentialModal({ plugin, onClose }: { plugin: Plugin; onClose: () => v
   );
 }
 
+// ── Uninstall modal ────────────────────────────────────────────────────────────
+
+function UninstallModal({ plugin, onClose }: { plugin: Plugin; onClose: () => void }) {
+  const [typed, setTyped] = useState("");
+  const ready = typed.trim().toLowerCase() === "yes";
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={onClose}>
+      <div className="bg-card border rounded-xl shadow-2xl w-full max-w-md mx-4 p-6 space-y-4" onClick={(e) => e.stopPropagation()}>
+        {/* Header */}
+        <div className="flex items-center gap-3">
+          <div className="h-10 w-10 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center shrink-0">
+            <svg className="h-5 w-5 text-red-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="3 6 5 6 21 6" />
+              <path d="M19 6l-1 14H6L5 6" />
+              <path d="M10 11v6M14 11v6" />
+              <path d="M9 6V4h6v2" />
+            </svg>
+          </div>
+          <div>
+            <h3 className="font-semibold text-base">Uninstall Plugin</h3>
+            <p className="text-sm text-muted-foreground">{plugin.name}</p>
+          </div>
+        </div>
+
+        {/* Warning */}
+        <div className="rounded-lg bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-800 p-3 text-sm text-red-800 dark:text-red-300 space-y-1">
+          <p className="font-medium">This action cannot be undone.</p>
+          <p>All connected tool access will be revoked. Any workflows using this plugin will immediately stop working.</p>
+        </div>
+
+        {/* Confirm input */}
+        <div className="space-y-1.5">
+          <label className="text-sm font-medium">
+            Type <span className="font-mono bg-muted px-1.5 py-0.5 rounded text-xs">yes</span> to confirm
+          </label>
+          <input
+            type="text"
+            value={typed}
+            onChange={(e) => setTyped(e.target.value)}
+            placeholder="yes"
+            autoFocus
+            className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          />
+        </div>
+
+        {/* Actions */}
+        <div className="flex gap-3 justify-end">
+          <button
+            onClick={onClose}
+            className="rounded-md border px-4 py-2 text-sm hover:bg-muted transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={() => { if (ready) onClose(); }}
+            disabled={!ready}
+            className={cn(
+              "rounded-md px-4 py-2 text-sm font-medium transition-colors flex items-center gap-2",
+              ready
+                ? "bg-red-600 text-white hover:bg-red-700"
+                : "bg-red-100 text-red-300 dark:bg-red-900/20 cursor-not-allowed"
+            )}
+          >
+            <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="3 6 5 6 21 6" />
+              <path d="M19 6l-1 14H6L5 6" />
+              <path d="M10 11v6M14 11v6" />
+              <path d="M9 6V4h6v2" />
+            </svg>
+            Uninstall
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function PluginsPage() {
@@ -399,7 +476,8 @@ export default function PluginsPage() {
   const [search, setSearch]         = useState("");
   const [openStep, setOpenStep]     = useState<number | null>(null);
   const [testPlugin, setTestPlugin] = useState<Plugin | null>(null);
-  const [credPlugin, setCredPlugin] = useState<Plugin | null>(null);
+  const [credPlugin, setCredPlugin]       = useState<Plugin | null>(null);
+  const [uninstallPlugin, setUninstallPlugin] = useState<Plugin | null>(null);
 
   const isDev   = can(role, "viewIntegrationGuide");
   const canAdmin = can(role, "uninstallPlugin");
@@ -566,10 +644,16 @@ export default function PluginsPage() {
                   {/* Uninstall — Admin+ only */}
                   {canAdmin && plugin.installed && (
                     <button
+                      onClick={() => setUninstallPlugin(plugin)}
                       title="Uninstall"
-                      className="rounded-md border border-red-200 text-red-500 px-3 py-2 text-xs hover:bg-red-50 dark:hover:bg-red-950/20 transition-colors"
+                      className="rounded-md border border-red-200 text-red-500 p-2 hover:bg-red-50 dark:hover:bg-red-950/20 transition-colors"
                     >
-                      ✕
+                      <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="3 6 5 6 21 6" />
+                        <path d="M19 6l-1 14H6L5 6" />
+                        <path d="M10 11v6M14 11v6" />
+                        <path d="M9 6V4h6v2" />
+                      </svg>
                     </button>
                   )}
                 </div>
@@ -619,8 +703,9 @@ export default function PluginsPage() {
       )}
 
       {/* Modals */}
-      {testPlugin  && <TestModal  plugin={testPlugin}  onClose={() => setTestPlugin(null)}  />}
-      {credPlugin  && <CredentialModal plugin={credPlugin} onClose={() => setCredPlugin(null)} />}
+      {testPlugin      && <TestModal      plugin={testPlugin}      onClose={() => setTestPlugin(null)}      />}
+      {credPlugin      && <CredentialModal plugin={credPlugin}     onClose={() => setCredPlugin(null)}     />}
+      {uninstallPlugin && <UninstallModal  plugin={uninstallPlugin} onClose={() => setUninstallPlugin(null)} />}
     </div>
   );
 }

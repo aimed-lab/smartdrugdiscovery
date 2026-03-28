@@ -85,6 +85,16 @@ interface NavGroup {
 
 const navGroups: NavGroup[] = [
   {
+    label: "Projects",
+    icon: FolderOpen,
+    items: [
+      { href: "/projects", label: "Directory" },
+      { href: "/projects/team", label: "Team" },
+      { href: "/projects/performance", label: "Performance" },
+      { href: "/projects/reports", label: "Reports" },
+    ],
+  },
+  {
     label: "Biology",
     icon: Dna,
     items: [
@@ -118,6 +128,8 @@ const navGroups: NavGroup[] = [
     label: "Regulation",
     icon: ShieldCheck,
     items: [
+      { href: "/regulatory/irb", label: "IRB Protocols" },
+      { href: "/regulatory/clinical-docs", label: "Clinical Trial Documents" },
       { href: "/regulatory/licensing", label: "Copyright / OSDD2 License" },
       { href: "/regulatory/business", label: "Business Optimization" },
       { href: "/regulatory/transactions", label: "Transaction Simulations" },
@@ -138,10 +150,11 @@ function Sidebar({
   onClose: () => void;
 }) {
   const [expanded, setExpanded] = useState<Record<string, boolean>>({
-    "Disease Biology": true,
+    "Projects": true,
+    "Biology": false,
     "Pharmacology": false,
-    "Clinical Development": false,
-    "Regulatory Compliance": false,
+    "Clinical": false,
+    "Regulation": false,
   });
   const [darkMode, setDarkMode] = useState(false);
   const [fontSize, setFontSize] = useState<0 | 1 | 2>(0);
@@ -182,9 +195,6 @@ function Sidebar({
       </div>
 
       <div className="flex-1 px-3 py-2 space-y-0.5 overflow-y-auto">
-        {/* Projects */}
-        <NavItem href="/projects" label="Projects" icon={FolderOpen} onNavigate={onClose} />
-
         {/* Grouped sections */}
         {navGroups.map((group) => {
           const GroupIcon = group.icon;

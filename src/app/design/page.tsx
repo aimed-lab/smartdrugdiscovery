@@ -284,73 +284,45 @@ export default function DesignPage() {
 
         {/* ── DMBT Cycle Tab ───────────────────────────────────────────── */}
         <TabsContent value="dmbt" className="flex-1 overflow-y-auto p-6 space-y-8">
-          {/* Flywheel */}
-          <div className="flex justify-center">
-            <div className="relative h-80 w-80">
-              {/* Circular connector */}
-              <svg
-                className="absolute inset-0 w-full h-full"
-                viewBox="0 0 320 320"
-              >
-                <circle
-                  cx="160"
-                  cy="160"
-                  r="90"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeDasharray="8 6"
-                  className="text-muted-foreground/30"
-                />
-                {/* Arrows */}
-                <path d="M205,72 L210,80 L200,78" fill="currentColor" className="text-muted-foreground/50" />
-                <path d="M248,205 L240,210 L242,200" fill="currentColor" className="text-muted-foreground/50" />
-                <path d="M115,248 L110,240 L120,242" fill="currentColor" className="text-muted-foreground/50" />
-                <path d="M72,115 L80,110 L78,120" fill="currentColor" className="text-muted-foreground/50" />
-              </svg>
-
-              {/* Center label */}
-              <div className="absolute inset-0 flex items-center justify-center">
-                <div className="text-center">
-                  {activePhase ? (
-                    <>
-                      <div className="font-semibold text-lg capitalize">{activePhase}</div>
-                      <div className="text-xs text-muted-foreground max-w-[120px]">
-                        {phases.find((p) => p.key === activePhase)?.description}
-                      </div>
-                    </>
-                  ) : (
-                    <>
-                      <div className="font-semibold text-lg">DMBT</div>
-                      <div className="text-xs text-muted-foreground">Click a phase</div>
-                    </>
-                  )}
-                </div>
-              </div>
-
-              {/* Phase buttons */}
+          {/* Phase selector — 4-card grid replacing the flywheel */}
+          <div>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
               {phases.map((phase) => (
                 <button
                   key={phase.key}
-                  onClick={() =>
-                    setActivePhase(activePhase === phase.key ? null : phase.key)
-                  }
+                  onClick={() => setActivePhase(activePhase === phase.key ? null : phase.key)}
                   className={cn(
-                    "absolute w-36 rounded-lg border bg-card p-3 text-left transition-all hover:shadow-md cursor-pointer",
-                    phasePositions[phase.key],
-                    activePhase === phase.key && `ring-2 ${phase.ring}`
+                    "rounded-lg border bg-card p-4 text-left transition-all hover:shadow-md cursor-pointer",
+                    activePhase === phase.key ? `ring-2 ${phase.ring} shadow-sm` : "hover:border-muted-foreground/30"
                   )}
                 >
-                  <div className="flex items-center gap-2">
-                    <span className={cn("h-2.5 w-2.5 rounded-full", phase.color)} />
-                    <span className="font-medium text-sm">{phase.label}</span>
+                  <div className="flex items-center gap-2 mb-1.5">
+                    <span className={cn("h-3 w-3 rounded-full shrink-0", phase.color)} />
+                    <span className="font-semibold text-sm">{phase.label}</span>
                   </div>
-                  <p className="text-[11px] text-muted-foreground mt-1 leading-tight">
-                    {phase.description}
-                  </p>
+                  <p className="text-xs text-muted-foreground leading-snug">{phase.description}</p>
                 </button>
               ))}
             </div>
+            {activePhase && (
+              <div className="flex items-center gap-2 text-sm">
+                <span className="text-muted-foreground">Filtered by:</span>
+                <span className={cn(
+                  "inline-flex items-center gap-1.5 rounded-full px-3 py-0.5 text-xs font-medium",
+                  phases.find((p) => p.key === activePhase)?.bg,
+                  phases.find((p) => p.key === activePhase)?.text
+                )}>
+                  <span className={cn("h-1.5 w-1.5 rounded-full", phases.find((p) => p.key === activePhase)?.color)} />
+                  {activePhase.charAt(0).toUpperCase() + activePhase.slice(1)} phase
+                </span>
+                <button
+                  onClick={() => setActivePhase(null)}
+                  className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  × Clear filter
+                </button>
+              </div>
+            )}
           </div>
 
           {/* DMBT Table */}

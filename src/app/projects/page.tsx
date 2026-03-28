@@ -48,6 +48,7 @@ interface Project {
   endDate: string;
   lastUpdated: string;
   milestones: { name: string; date: string; done: boolean }[];
+  age: { activity: number; goal: number; execution: number };  // 0-100 each
 }
 
 const projectGroups = ["Oncology", "Neurology", "Immunology"];
@@ -67,6 +68,7 @@ const projects: Project[] = [
     startDate: "2025-01-15",
     endDate: "2026-06-30",
     lastUpdated: "2 days ago",
+    age: { activity: 88, goal: 75, execution: 91 },
     milestones: [
       { name: "Hit ID", date: "2025-03-01", done: true },
       { name: "Lead Optimization", date: "2025-08-15", done: true },
@@ -88,6 +90,7 @@ const projects: Project[] = [
     startDate: "2024-09-01",
     endDate: "2026-12-31",
     lastUpdated: "1 day ago",
+    age: { activity: 92, goal: 62, execution: 78 },
     milestones: [
       { name: "Target Validation", date: "2025-01-15", done: true },
       { name: "Hit-to-Lead", date: "2025-06-01", done: true },
@@ -109,6 +112,7 @@ const projects: Project[] = [
     startDate: "2024-06-01",
     endDate: "2025-12-31",
     lastUpdated: "2 weeks ago",
+    age: { activity: 28, goal: 67, execution: 54 },
     milestones: [
       { name: "Selectivity Screen", date: "2024-09-01", done: true },
       { name: "Lead Series", date: "2025-03-01", done: true },
@@ -129,6 +133,7 @@ const projects: Project[] = [
     startDate: "2023-03-01",
     endDate: "2025-02-28",
     lastUpdated: "1 month ago",
+    age: { activity: 0, goal: 100, execution: 96 },
     milestones: [
       { name: "HTS Campaign", date: "2023-06-01", done: true },
       { name: "Lead Optimization", date: "2024-01-15", done: true },
@@ -205,6 +210,19 @@ const assets: ProjectAsset[] = [
   { name: "BRAF_Docking_Results.csv", type: "dataset", project: "BRAF Inhibitor Program", addedBy: "Dr. Raj Patel", date: "Jan 30, 2026", size: "5.1 MB" },
   { name: "Clinical_Feasibility_Analysis.docx", type: "document", project: "EGFR-T790M Resistance Program", addedBy: "Dr. Amanda Foster", date: "Jan 20, 2026", size: "1.2 MB" },
 ];
+
+// A.G.E. = Activity · Goal-progress · Execution composite score (0–100 each)
+function ageGrade(score: number): { label: string; color: string } {
+  if (score >= 90) return { label: "A", color: "text-green-700 dark:text-green-400" };
+  if (score >= 80) return { label: "B+", color: "text-green-600 dark:text-green-500" };
+  if (score >= 70) return { label: "B", color: "text-blue-600 dark:text-blue-400" };
+  if (score >= 60) return { label: "C+", color: "text-yellow-600 dark:text-yellow-400" };
+  if (score >= 50) return { label: "C", color: "text-orange-600 dark:text-orange-400" };
+  return { label: "D", color: "text-red-600 dark:text-red-400" };
+}
+function ageComposite(age: { activity: number; goal: number; execution: number }) {
+  return Math.round((age.activity * 0.3 + age.goal * 0.4 + age.execution * 0.3));
+}
 
 const statusConfig: Record<ProjectStatus, { label: string; className: string; dotColor: string }> = {
   active: {
