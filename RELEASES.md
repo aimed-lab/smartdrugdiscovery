@@ -8,6 +8,59 @@ Tags follow `v1.xxx` in git. Stable releases are marked ⭐.
 
 ---
 
+## v1.108 — Fix: Profile Fields Now Persist Correctly (localStorage)
+**Date:** 2026-03-28
+**Tag:** `v1.108`
+**Commit:** `da1d1e2`
+**Status:** Stable
+
+### Bug Fix
+
+**Root cause:** `linkedin`, `twitter`, `orcid`, `orgEmail`, and `orgEmailVerified` were local
+`useState` fields in the Settings page but were never included in the `updateUser()` call
+or the `User` interface — so they silently discarded on every Save or page reload.
+
+#### `src/lib/auth-context.tsx`
+- Added to `User` interface (all optional, all persisted via `saveUserToDB` → localStorage):
+  - `orgEmail?: string`
+  - `orgEmailVerified?: boolean`
+  - `linkedin?: string`
+  - `twitter?: string`
+  - `orcid?: string`
+
+#### `src/app/settings/page.tsx`
+- `useEffect` now reads all 5 new fields from `user` on initial mount
+- `profileLoaded` ref prevents re-hydration when `updateUser()` mutates `user` mid-editing
+- `handleVerifyOrgCode`: calls `updateUser({ orgEmail, orgEmailVerified: true })` immediately on OTP success — survives page reload
+- Verified org email state restored from `user.orgEmailVerified` on remount
+- **Save Profile** button includes all fields in `updateUser()` payload
+- Green **"✓ Profile saved"** confirmation banner (4-second auto-dismiss) appears after save
+- Note in banner: _"persisted in your browser — a server DB can be connected later"_
+
+### Persistence architecture (current)
+| Layer | Technology | Notes |
+|-------|-----------|-------|
+| Client state | React `useState` | In-memory, lost on navigation |
+| Local persistence | `localStorage` (JSON) | Survives page reload / browser close |
+| Server DB | **Not yet implemented** | Supabase / Prisma would replace localStorage |
+
+> **Next step for a real backend:** Replace `saveUserToDB` / `getUserDB` in `auth-context.tsx`
+> with `fetch('/api/user', { method: 'PATCH', body: JSON.stringify(updates) })` and back it
+> with a Supabase or Prisma-managed Postgres database.
+
+### Files Changed
+| File | Change type |
+|------|------------|
+| `src/lib/auth-context.tsx` | Modified (5 new User fields) |
+| `src/app/settings/page.tsx` | Modified (load/save all fields, save confirmation) |
+
+### Rollback
+```bash
+git checkout v1.107
+```
+
+---
+
 ## v1.106 — Synchronized Role-Color Avatar, Emoji/Photo Support, Models Button Alignment
 **Date:** 2026-03-28
 **Tag:** `v1.106`
@@ -553,6 +606,7 @@ Use this at the **end** of each session:
 
 | Tag | Status | Key feature |
 |-----|--------|-------------|
+| `v1.108` | Stable | **Fix:** profile fields persist correctly to localStorage |
 | `v1.106` | Stable | Synchronized role avatar, emoji/photo, models button fix |
 | `v1.104` | Stable | HuggingFace + Kaggle plugin connectors |
 | `v1.103` | Stable | RELEASES.md agentic workflow guide |
