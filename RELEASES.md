@@ -1,7 +1,109 @@
 # SmartDrugDiscovery — Release Notes
 
-Versioning format: **1.xxx** (increment on each push/merge to `main`).
+Versioning format: **1.xxx** (increment on each logical push to `main`).
 Tags follow `v1.xxx` in git. Stable releases are marked ⭐.
+
+> **Agentic coding discipline:**
+> Every user-visible change gets its own tag. This lets you `git checkout vX.YYY` to inspect, verify, or roll back any individual change without touching a full major release. See the [Developer Guide](#developer-guide) at the bottom for rollback and cherry-pick recipes.
+
+---
+
+## v1.102 — Platform Config, Assets Filter/Sort, Settings Polish
+**Date:** 2026-03-28
+**Tag:** `v1.102`
+**Commit:** `54a6a9b`
+**Status:** Stable
+
+### New Features
+
+#### `src/lib/platform-config.ts` (NEW — central source of truth)
+- Single file exports `PLATFORM_CONFIG` with `name`, `version`, `build`, `license`, `copyright`, `techStack`
+- **Update version in one place** → propagates to sidebar footer (`auth-gate.tsx`) and Settings → About automatically
+- Eliminates stale hardcoded strings scattered across components
+
+#### Settings → API Keys (`src/app/settings/page.tsx`)
+- Split into two labelled sections: **AI Model Providers** and **Data Sources & Services**
+- Added **Anthropic API** entry — shown as "✓ Server env var" (configured in Vercel; not exposed to client)
+- Added **Groq Cloud API** entry (Llama 3.3 70B)
+- **Foundation Model** badge on provider keys links to `/models`
+- "Manage in Vercel" label replaces Show/Rotate buttons for server-side keys
+
+#### Settings → About (`src/app/settings/page.tsx`)
+- Version, Build, License, Copyright all read from `PLATFORM_CONFIG` — no more stale `1.0.0-beta`
+- Added **Institution** row
+- Tech stack badge list now from config (includes Vercel)
+
+#### Settings → Profile (`src/app/settings/page.tsx`)
+- **Organization Email** field with full verification flow:
+  - Enter `.edu` / org address → click **Send Code** → enter 6-digit OTP → **Verified ✓** badge
+  - Once verified, field locks; user can clear and re-verify with a different address
+- **Researcher Profiles** row:
+  - **LinkedIn** URL field
+  - **X / Twitter** handle field
+  - **ORCID iD** field (monospace, pattern hint `0000-0000-0000-0000`) — shows live "View ORCID profile ↗" deep-link once filled
+
+#### Projects → Assets tab (`src/app/projects/page.tsx`)
+- **Type filter pills**: All Types / Document / Dataset / Compound Library / Model / Report
+- **Project dropdown**: filter by individual project or show all
+- **Sortable column headers**: Name, Type, Project, Date, Size — click to sort ascending, click again to flip; ▲/▼ active indicator, ⇅ inactive
+- Size sort parses MB/GB/KB correctly for numeric ordering
+- **Live count** (`N assets`) updates as filters change
+- **Empty-state row** when no assets match filters
+
+### Files Changed
+| File | Change type |
+|------|------------|
+| `src/lib/platform-config.ts` | **Created** |
+| `src/app/settings/page.tsx` | Modified (Profile, API Keys, About tabs) |
+| `src/app/projects/page.tsx` | Modified (Assets tab filter/sort) |
+| `src/app/auth-gate.tsx` | Modified (version label → PLATFORM_CONFIG) |
+
+### Rollback
+```bash
+git checkout v1.101   # reverts to role-color avatar state
+```
+
+---
+
+## v1.101 — Role-Color Avatar, Pinned Card Footers, Clickable Project Names
+**Date:** 2026-03-28
+**Tag:** `v1.101`
+**Commit:** `de5caff`
+**Status:** Stable
+
+### New Features
+
+#### Role-encoded avatar (`src/app/auth-gate.tsx`)
+- Avatar background color now encodes the user's platform role at a glance:
+  - 🟠 **Orange** = Owner
+  - 🔴 **Red** = Admin
+  - 🔵 **Blue** = Developer
+  - ⚫ **Gray** = User
+- Clicking avatar navigates to `Settings → Profile` (role change selector)
+- Entire `RoleSwitcher` dropdown removed from sidebar footer — cleaner UI
+
+#### Pinned card footer — services page (`src/app/services/page.tsx`)
+- All AI Agent cards use `flex flex-col` + `mt-auto pt-3 border-t space-y-3` footer wrapper
+- Entity chips, stats row, and **Run Agent** button always align at the bottom regardless of content length
+- Uniform card height across any row — no ragged bottoms
+
+#### Clickable project names in Team tab (`src/app/projects/page.tsx`)
+- Project names on team member cards are now `<a>` links
+- Clicking navigates to `/projects#PRJ-XXX` — browser scrolls to and highlights the project card in the Overview tab
+- `id={project.id}` + `scroll-mt-6` anchors added to Overview cards
+- `projectNameToId` lookup map handles name → id resolution
+
+### Files Changed
+| File | Change type |
+|------|------------|
+| `src/app/auth-gate.tsx` | Modified (role-color avatar, removed RoleSwitcher) |
+| `src/app/services/page.tsx` | Modified (card footer alignment) |
+| `src/app/projects/page.tsx` | Modified (anchor IDs, clickable project links) |
+
+### Rollback
+```bash
+git checkout v1.100   # reverts to major release state
+```
 
 ---
 
@@ -223,45 +325,133 @@ GitHub's built-in email notifications then alert the team on each new issue.
 
 ## Developer Guide
 
+### Versioning philosophy (Agentic AI coding)
+
+Each logical unit of work gets its own mini-version tag. This keeps the history granular enough to:
+- **Identify** exactly which commit introduced a regression
+- **Revert** a single feature without touching others (cherry-pick or reset)
+- **Move forward** by cherry-picking a fix onto a rollback branch
+
+Tag frequency guidelines:
+| Scope | Example | Bump |
+|-------|---------|------|
+| Typo / copy fix | Fix label wording | +0.001 |
+| Single component | New filter on a table | +0.001 |
+| Multi-component feature | New profile fields + verification | +0.001 |
+| Cross-page feature set | New nav group + 3 sub-pages | +0.001–0.003 |
+| Major milestone | Enterprise RBAC, complete platform overhaul | +0.093 (jump to x.100) |
+
+---
+
 ### How to create a new release
 
 ```bash
-# 1. Commit your changes
-git add -A
-git commit -m "Description of changes"
+# 1. Make focused commits (one logical feature per commit where possible)
+git add src/app/specific-file.tsx src/lib/specific-lib.ts
+git commit -m "v1.103 — Short description of what changed and why"
 
-# 2. Tag with next version
-git tag -a v1.002 -m "v1.002 — Short description"
+# 2. Tag the commit with the next version
+git tag -a v1.103 HEAD -m "v1.103 — Short description"
 
-# 3. Push code + tag
+# 3. Push code AND tags together
 git push origin main --tags
 
-# Vercel auto-deploys from main branch push
+# 4. Update RELEASES.md (this file) with:
+#    - Version heading, date, commit hash, status
+#    - Feature bullets with file names
+#    - Files Changed table
+#    - One-line rollback command
 ```
+
+---
 
 ### How to roll back to a stable version
 
 ```bash
-# List stable tags
+# List all tags newest-first
 git tag --sort=-version:refname
 
-# Check out a specific version (read-only)
-git checkout v1.000
+# Inspect what changed at a specific version (read-only)
+git show v1.101
 
-# Or create a rollback branch from a stable tag
-git checkout -b rollback/v1.000 v1.000
-git push origin rollback/v1.000
-# Then in Vercel dashboard, set "Production Branch" to rollback/v1.000
+# See diff between two versions
+git diff v1.100 v1.102
+
+# Option A — rollback branch (safest, non-destructive)
+git checkout -b rollback/v1.101 v1.101
+git push origin rollback/v1.101
+# In Vercel dashboard → Settings → Git → Production Branch → rollback/v1.101
+
+# Option B — hard reset on main (destructive, only if you're sure)
+# git reset --hard v1.101
+# git push origin main --force   ← only with team agreement
+
+# Option C — revert a single commit (non-destructive, creates a new commit)
+git revert <commit-hash>
+git push origin main --tags
 ```
+
+---
+
+### How to cherry-pick a fix onto a rollback branch
+
+```bash
+# You're on rollback/v1.101 and want to apply only the platform-config fix from v1.102
+git cherry-pick 54a6a9b   # use the commit hash of the specific change
+git push origin rollback/v1.101
+```
+
+---
 
 ### How to start a coding session with feedback review
 
 ```bash
-# View all pending feedback sorted by priority
+# View all pending feedback sorted by priority (local dev)
 curl "http://localhost:3000/api/feedback" | jq .
-# or in production:
-curl "https://studio.smartdrugdiscovery.org/api/feedback?key=YOUR_FEEDBACK_READ_KEY" | jq .
+
+# Production
+curl "https://studio.smartdrugdiscovery.org/api/feedback" | jq .
 ```
+
+---
+
+### Agentic AI session checklist
+
+Use this at the **start** of each Claude Code session:
+
+1. `git log --oneline -10` — review last 10 commits to understand current state
+2. `curl localhost:3000/api/feedback | jq .` — review open feedback items
+3. Agree on the feature scope for this session
+4. Work in small commits (one feature at a time)
+5. Tag each commit with the next mini-version
+6. Update `RELEASES.md` with a new entry per tag
+7. `git push origin main --tags`
+
+Use this at the **end** of each session:
+
+1. Verify Vercel deploy succeeded (check dashboard or wait ~90s)
+2. Tag the final commit if not already done
+3. Confirm `RELEASES.md` is up to date
+4. Note any **Pending Tasks** in the last RELEASES.md entry for the next session
+
+---
+
+### Stable version reference table
+
+| Tag | Status | Key feature |
+|-----|--------|-------------|
+| `v1.102` | Stable | Platform config, Assets filter/sort, Settings polish |
+| `v1.101` | Stable | Role-color avatar, card footer alignment |
+| `v1.100` | ⭐ Major | Enterprise RBAC, full platform overhaul |
+| `v1.007` | Stable | Models Leaderboard, Plugin Test Modal |
+| `v1.006` | Stable | Foundation Models hub |
+| `v1.005` | Stable | ChEMBL MCP integration |
+| `v1.004` | Stable | Multimedia feedback + font size |
+| `v1.003` | ⭐ Stable | Mobile Admin Agent Console |
+| `v1.001` | ⭐ Stable | Mobile responsive + Feedback system |
+| `v1.000` | ⭐ Stable | Initial release (baseline) |
+
+---
 
 ### Multi-developer workflow
 1. Each developer works on a feature branch (`git checkout -b feature/my-feature`)
