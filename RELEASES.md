@@ -5,6 +5,29 @@ Tags follow `v1.xxx` in git. Stable releases are marked ⭐.
 
 ---
 
+## v1.004 — Multimedia Feedback + Font Size Accessibility
+**Date:** 2026-03-28
+**Tag:** `v1.004`
+**Status:** Stable
+
+### New Features
+- **Multimedia Feedback Widget** — users can now attach images, audio, and files to feedback:
+  - Paste screenshots directly (Ctrl/Cmd+V) from clipboard
+  - Drag & drop images/files into the feedback panel
+  - Pick files from gallery/camera via file picker (`image/*, audio/*, video/*, .pdf`)
+  - **Voice notes** — record up to 120-second audio clips directly in the browser (MediaRecorder API, webm/mp4 codec auto-detection)
+  - Image thumbnails and inline `<audio>` player for voice note preview
+  - Images auto-resized to max 800px JPEG using Canvas API before upload
+  - Attachment metadata (name, type) listed in GitHub Issues; full data saved in `feedback-log.json`
+- **Font Size Accessibility** — three "A" buttons in sidebar footer:
+  - **A** (small) — Normal (100%, default)
+  - **A** (medium) — Large (115%)
+  - **A** (large) — Largest (130%)
+  - Adjusts root `font-size` so all `rem`-based text scales site-wide
+  - Active level highlighted in primary color
+
+---
+
 ## ⭐ v1.003 — Mobile Admin Agent Console
 **Date:** 2026-03-28
 **Tag:** `v1.003`

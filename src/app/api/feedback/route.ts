@@ -2,6 +2,14 @@ import { NextRequest, NextResponse } from "next/server";
 import { existsSync, readFileSync, writeFileSync } from "fs";
 import path from "path";
 
+interface Attachment {
+  id: string;
+  name: string;
+  mimeType: string;
+  dataUrl: string;
+  kind: "image" | "audio" | "file";
+}
+
 interface FeedbackEntry {
   id: string;
   type: string;
@@ -12,6 +20,7 @@ interface FeedbackEntry {
   pageTitle: string;
   user: { name: string; email: string } | null;
   timestamp: string;
+  attachments?: Attachment[];
   githubIssueUrl: string | null;
   githubIssueNumber: number | null;
 }
@@ -82,7 +91,7 @@ async function createGitHubIssue(entry: FeedbackEntry): Promise<{ url: string; n
 ## Summary
 ${entry.title}
 
-${entry.description ? `## Details\n${entry.description}\n` : ""}
+${entry.description ? `## Details\n${entry.description}\n` : ""}${entry.attachments?.length ? `\n## Attachments\n${entry.attachments.map((a) => `- ${a.kind === "image" ? "🖼️" : a.kind === "audio" ? "🎤" : "📎"} \`${a.name}\` (${a.mimeType})`).join("\n")}\n` : ""}
 ---
 *Submitted via SmartDrugDiscovery feedback widget · ID: ${entry.id}*`;
 
@@ -135,7 +144,7 @@ function appendToLocalLog(entry: FeedbackEntry) {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { type, priority, title, description, url, pageTitle, user, timestamp } = body;
+    const { type, priority, title, description, url, pageTitle, user, timestamp, attachments } = body;
 
     if (!title?.trim()) {
       return NextResponse.json({ error: "Title is required" }, { status: 400 });
@@ -151,6 +160,7 @@ export async function POST(req: NextRequest) {
       pageTitle: pageTitle ?? "",
       user: user ?? null,
       timestamp: timestamp ?? new Date().toISOString(),
+      attachments: Array.isArray(attachments) ? attachments : [],
       githubIssueUrl: null,
       githubIssueNumber: null,
     };
