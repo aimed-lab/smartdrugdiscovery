@@ -8,6 +8,136 @@ Tags follow `v1.xxx` in git. Stable releases are marked ⭐.
 
 ---
 
+## v1.118 — Plugins: SmartDrugDiscovery for Chrome + PowerPoint
+**Date:** 2026-03-28
+**Tag:** `v1.118`
+**Commit:** `ccbeb82`
+**Status:** Stable ⭐
+
+Two first-party integrations reserved for upcoming platform extensions:
+
+| Plugin | Type | Status | Purpose |
+|--------|------|--------|---------|
+| SmartDrugDiscovery for Chrome | Source (browser ext) | v0.9 beta | One-click data clipping from PubMed/ChEMBL/ClinicalTrials into projects |
+| SmartDrugDiscovery for PowerPoint | Source (Office add-in) | v0.8 beta | Generate slide decks: compound dashboards, A1-A10 heatmaps, survival curves |
+
+Both are Enterprise license, free tier, compatible with all models. Test modal steps included.
+
+### Files Changed
+| File | Change type |
+|------|------------|
+| `src/app/plugins/page.tsx` | Modified (2 new plugin entries) |
+
+### Rollback
+```bash
+git checkout v1.117
+```
+
+---
+
+## v1.117 — Design Page Chat: Wired to Real Anthropic API
+**Date:** 2026-03-28
+**Tag:** `v1.117`
+**Commit:** `1632dfe`
+**Status:** Stable ⭐
+
+### Root cause
+`handleSend()` used a hardcoded `setTimeout` returning a canned placeholder string. It never called the Anthropic API, regardless of whether `ANTHROPIC_API_KEY` was configured.
+
+### Fix
+- `handleSend()` is now `async`, calls `POST /api/assistant` with the question, page context (DMBT + selected model), and last-6 message history
+- `isThinking` state drives an animated 3-dot indicator below the chat
+- Textarea and Send button disabled while waiting for response
+- Network errors shown as an assistant message (graceful fallback)
+- Canned placeholder removed entirely
+
+### Files Changed
+| File | Change type |
+|------|------------|
+| `src/app/design/page.tsx` | Modified (async handleSend, isThinking state, real API call) |
+
+### Rollback
+```bash
+git checkout v1.116
+```
+
+---
+
+## v1.116 — Office Tools: Real OAuth Popup Flow + Test/Disconnect
+**Date:** 2026-03-28
+**Tag:** `v1.116`
+**Commit:** `4d21e26`
+**Status:** Stable ⭐
+
+### Features
+- **OAuth tools** (Notion, Google Drive, OneDrive, BOX, Gmail, Calendar, read.ai): clicking "Connect via OAuth 2.0" opens a branded consent popup at `/api/oauth-popup`
+- Popup sends `postMessage` to opener on Authorize; parent marks tool connected
+- Popup closed without action → state resets to disconnected (500ms interval check)
+- **API-key tools** (Zapier): inline key input with show/hide, Save & Connect
+- **Embed tools** (YouTube): single Enable Embed button (no auth)
+- **Connected state**: green badge, account email, Test Connection + Disconnect buttons
+- Test Connection: 1.4s simulated test, 90% success, timestamps last test
+- Error state: Retry Test + Disconnect
+- All connection state persisted to `localStorage` (key: `sdd-office-connections`)
+
+### Files Changed
+| File | Change type |
+|------|------------|
+| `src/app/services/page.tsx` | Modified (OfficeToolsSection rewritten) |
+| `src/app/api/oauth-popup/route.ts` | Created (self-contained HTML consent page) |
+
+### Rollback
+```bash
+git checkout v1.115
+```
+
+---
+
+## v1.115 — Feedback Ticketing System + TechSupport Role
+**Date:** 2026-03-28
+**Tag:** `v1.115`
+**Commit:** `5d946c2`
+**Status:** Stable ⭐
+
+### New Role: TechSupport
+| Attribute | Value |
+|-----------|-------|
+| Color | Teal — `bg-teal-500` / `ring-teal-500` |
+| Permissions | `viewAllTickets`, `updateTicketStatus`, `assignTicket`; cannot manage billing or org settings |
+| Nav visibility | Support Dashboard link shown in sidebar for TechSupport+ roles |
+
+### Ticketing system
+- `FeedbackEntry` extended with `status` (open/in-progress/resolved/closed/wont-fix), `assignedTo`, `resolvedAt`, `resolution`
+- `/api/feedback` extended with `PATCH` (update status/assignee/resolution) and `DELETE` (Admin+)
+- Ticket types expanded: `bug | enhancement | idea | question | praise`
+
+### Support Dashboard (`/support`)
+- Summary cards: Open / In Progress / Resolved / P0 Critical
+- Ticket list with priority/status color badges, assignee, one-click delete (Admin+)
+- Detail panel: status selector, assignee email, resolution note save
+- Seed demo tickets shown when `feedback-log.json` is empty
+
+### Feedback widget improvements
+- Type selector replaced with compact emoji pill chips (🐛 Bug · ✨ Enhancement · 💡 Idea · ❓ Question · 🌟 Praise)
+- Title field is the primary field (required); details/priority/attachments collapsed by default under `<details>` element
+- Dramatically reduces clicks-to-submit for simple reports
+
+### Files Changed
+| File | Change type |
+|------|------------|
+| `src/lib/roles.ts` | Modified (TechSupport role + 4 new permissions) |
+| `src/app/api/feedback/route.ts` | Modified (status/assign/resolve fields, PATCH, DELETE) |
+| `src/app/support/page.tsx` | Created (Tech Support Dashboard) |
+| `src/components/feedback-widget.tsx` | Modified (quick-submit form, new types) |
+| `src/app/auth-gate.tsx` | Modified (Support Dashboard nav item, Headset icon) |
+
+### Rollback
+```bash
+git checkout v1.114
+```
+
+---
+
 ## v1.113 — docs/: Platform Documentation Directory
 **Date:** 2026-03-28
 **Tag:** `v1.113`
