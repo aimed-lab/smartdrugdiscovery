@@ -1,13 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 
 interface Target {
   id: string;
   name: string;
-  type: "Gene/Protein" | "RNA" | "DNA" | "Cell";
+  type: "Gene" | "Protein" | "RNA" | "DNA" | "Cell";
   disease: string;
   druggability: "High" | "Medium" | "Low";
   validation: string;
@@ -16,10 +15,10 @@ interface Target {
 }
 
 const targets: Target[] = [
-  { id: "TGT-001", name: "BRAF V600E", type: "Gene/Protein", disease: "Melanoma", druggability: "High", validation: "Clinical", evidence: "Terrain2Drug", status: "Active" },
-  { id: "TGT-002", name: "MAPT (Tau)", type: "Gene/Protein", disease: "Alzheimer's", druggability: "Medium", validation: "Preclinical", evidence: "Terrain2Drug", status: "Active" },
-  { id: "TGT-003", name: "JAK2 V617F", type: "Gene/Protein", disease: "MPN", druggability: "High", validation: "Clinical", evidence: "Terrain2Drug", status: "Paused" },
-  { id: "TGT-004", name: "EGFR T790M", type: "Gene/Protein", disease: "NSCLC", druggability: "High", validation: "Clinical", evidence: "Terrain2Drug", status: "Completed" },
+  { id: "TGT-001", name: "BRAF V600E", type: "Gene", disease: "Melanoma", druggability: "High", validation: "Clinical", evidence: "Terrain2Drug", status: "Active" },
+  { id: "TGT-002", name: "MAPT (Tau)", type: "Protein", disease: "Alzheimer's", druggability: "Medium", validation: "Preclinical", evidence: "Terrain2Drug", status: "Active" },
+  { id: "TGT-003", name: "JAK2 V617F", type: "Gene", disease: "MPN", druggability: "High", validation: "Clinical", evidence: "Terrain2Drug", status: "Paused" },
+  { id: "TGT-004", name: "EGFR T790M", type: "Protein", disease: "NSCLC", druggability: "High", validation: "Clinical", evidence: "Terrain2Drug", status: "Completed" },
   { id: "TGT-005", name: "miR-21", type: "RNA", disease: "Melanoma", druggability: "Medium", validation: "In vitro", evidence: "Paper2Drug", status: "Active" },
   { id: "TGT-006", name: "MALAT1 lncRNA", type: "RNA", disease: "NSCLC", druggability: "Low", validation: "In vitro", evidence: "Paper2Drug", status: "Discovery" },
   { id: "TGT-007", name: "TERT promoter", type: "DNA", disease: "Melanoma", druggability: "Medium", validation: "Preclinical", evidence: "Terrain2Drug", status: "Active" },
@@ -28,35 +27,47 @@ const targets: Target[] = [
   { id: "TGT-010", name: "Tumor-assoc. macrophages", type: "Cell", disease: "NSCLC", druggability: "Medium", validation: "Preclinical", evidence: "Terrain2Drug", status: "Discovery" },
 ];
 
-const filterOptions = ["All", "Gene/Protein", "RNA", "DNA", "Cell"] as const;
+const filterOptions = ["All", "Gene", "Protein", "RNA", "DNA", "Cell"] as const;
 
 const typeBadgeColors: Record<string, string> = {
-  "Gene/Protein": "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300",
-  RNA: "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-300",
-  DNA: "bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-300",
-  Cell: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300",
+  Gene:    "bg-sky-100 text-sky-800 dark:bg-sky-900 dark:text-sky-300",
+  Protein: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300",
+  RNA:     "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-300",
+  DNA:     "bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-300",
+  Cell:    "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300",
+};
+
+// Slightly more saturated version for the summary tiles
+const tileBg: Record<string, string> = {
+  Gene:    "bg-sky-100/80 dark:bg-sky-900/40 border border-sky-200 dark:border-sky-800",
+  Protein: "bg-blue-100/80 dark:bg-blue-900/40 border border-blue-200 dark:border-blue-800",
+  RNA:     "bg-purple-100/80 dark:bg-purple-900/40 border border-purple-200 dark:border-purple-800",
+  DNA:     "bg-orange-100/80 dark:bg-orange-900/40 border border-orange-200 dark:border-orange-800",
+  Cell:    "bg-green-100/80 dark:bg-green-900/40 border border-green-200 dark:border-green-800",
+};
+
+const tileText: Record<string, string> = {
+  Gene:    "text-sky-700 dark:text-sky-300",
+  Protein: "text-blue-700 dark:text-blue-300",
+  RNA:     "text-purple-700 dark:text-purple-300",
+  DNA:     "text-orange-700 dark:text-orange-300",
+  Cell:    "text-green-700 dark:text-green-300",
 };
 
 const druggabilityColors: Record<string, string> = {
-  High: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300",
+  High:   "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300",
   Medium: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300",
-  Low: "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300",
+  Low:    "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300",
 };
 
 const statusConfig: Record<string, { dot: string; text: string }> = {
-  Active: { dot: "bg-green-500", text: "text-green-700 dark:text-green-400" },
-  Paused: { dot: "bg-yellow-500", text: "text-yellow-700 dark:text-yellow-400" },
-  Completed: { dot: "bg-gray-400", text: "text-gray-600 dark:text-gray-400" },
-  Discovery: { dot: "bg-blue-500", text: "text-blue-700 dark:text-blue-400" },
+  Active:    { dot: "bg-green-500",  text: "text-green-700 dark:text-green-400" },
+  Paused:    { dot: "bg-yellow-500", text: "text-yellow-700 dark:text-yellow-400" },
+  Completed: { dot: "bg-gray-400",   text: "text-gray-600 dark:text-gray-400" },
+  Discovery: { dot: "bg-blue-500",   text: "text-blue-700 dark:text-blue-400" },
 };
 
-const summaryCards = [
-  { label: "Total Targets", count: 10, color: "bg-primary text-primary-foreground" },
-  { label: "Gene/Protein", count: 4, color: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300" },
-  { label: "RNA", count: 2, color: "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-300" },
-  { label: "DNA", count: 2, color: "bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-300" },
-  { label: "Cell", count: 2, color: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300" },
-];
+const subtypes = ["Gene", "Protein", "RNA", "DNA", "Cell"] as const;
 
 export default function TargetBoardPage() {
   const [activeFilter, setActiveFilter] = useState<string>("All");
@@ -66,12 +77,16 @@ export default function TargetBoardPage() {
       ? targets
       : targets.filter((t) => t.type === activeFilter);
 
+  const counts = Object.fromEntries(
+    subtypes.map((type) => [type, targets.filter((t) => t.type === type).length])
+  );
+
   return (
-    <div className="p-8 space-y-6">
+    <div className="p-4 md:p-8 space-y-6">
       <div>
         <h1 className="text-3xl font-bold">Target Board</h1>
         <p className="text-muted-foreground mt-1">
-          Gene, RNA, DNA, and cellular targets for disease programs
+          Gene, protein, RNA, DNA, and cellular targets for disease programs
         </p>
       </div>
 
@@ -95,7 +110,7 @@ export default function TargetBoardPage() {
 
       {/* Targets Table */}
       <div className="overflow-x-auto rounded-lg border">
-        <table className="w-full text-sm">
+        <table className="w-full text-sm min-w-[640px]">
           <thead>
             <tr className="border-b bg-muted/50">
               <th className="text-left px-4 py-3 font-medium">ID</th>
@@ -142,23 +157,37 @@ export default function TargetBoardPage() {
         </table>
       </div>
 
-      {/* Summary Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-        {summaryCards.map((card) => (
-          <Card key={card.label}>
-            <CardHeader className="pb-2">
-              <CardDescription>{card.label}</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="flex items-center gap-2">
-                <span className="text-3xl font-bold">{card.count}</span>
-                <span className={cn("inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium", card.color)}>
-                  {card.label === "Total Targets" ? "all" : card.label.toLowerCase()}
+      {/* Summary — large total + shaded subcategory tiles */}
+      <div className="rounded-xl border bg-card p-5">
+        <div className="flex flex-col sm:flex-row sm:items-center gap-5">
+          {/* Total — large and dominant */}
+          <div className="shrink-0 flex flex-col items-start sm:pr-6 sm:border-r">
+            <span className="text-5xl font-extrabold leading-none">{targets.length}</span>
+            <span className="text-sm text-muted-foreground mt-1 font-medium">Targets</span>
+          </div>
+
+          {/* Subcategory shaded tiles */}
+          <div className="flex flex-wrap gap-3 flex-1">
+            {subtypes.map((type) => (
+              <button
+                key={type}
+                onClick={() => setActiveFilter(activeFilter === type ? "All" : type)}
+                className={cn(
+                  "flex flex-col items-center rounded-lg px-4 py-2.5 min-w-[72px] transition-all",
+                  tileBg[type],
+                  activeFilter === type && "ring-2 ring-offset-1 ring-current"
+                )}
+              >
+                <span className={cn("text-2xl font-bold leading-none", tileText[type])}>
+                  {counts[type]}
                 </span>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
+                <span className={cn("text-xs font-medium mt-0.5", tileText[type])}>
+                  {type}
+                </span>
+              </button>
+            ))}
+          </div>
+        </div>
       </div>
     </div>
   );
