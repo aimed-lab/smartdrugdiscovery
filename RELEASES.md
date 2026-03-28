@@ -8,6 +8,114 @@ Tags follow `v1.xxx` in git. Stable releases are marked ⭐.
 
 ---
 
+## v1.113 — docs/: Platform Documentation Directory
+**Date:** 2026-03-28
+**Tag:** `v1.113`
+**Commit:** `835a9da`
+**Status:** Stable
+
+Six Markdown files added to `docs/` for GitHub-hosted platform documentation, linked from the AI assistant Docs tab and the feedback widget.
+
+| File | Contents |
+|------|----------|
+| `docs/README.md` | Index with links to all docs pages |
+| `docs/roles-and-permissions.md` | Owner/Admin/Developer/User RBAC rules, permission matrix |
+| `docs/ownership-transfer.md` | 24-hr cooling-off protocol, cancel/complete flow, edge cases |
+| `docs/platform-architecture.md` | Tech stack, localStorage persistence, MCP servers, AI models |
+| `docs/getting-started.md` | Invite code login, first-time walkthrough, key concepts |
+| `docs/api-reference.md` | `/api/assistant` spec, planned endpoints, auth patterns |
+
+### Rollback
+```bash
+git checkout v1.112
+```
+
+---
+
+## v1.112 — AI Assistant Widget: Tabbed Ask AI / Feedback / Docs
+**Date:** 2026-03-28
+**Tag:** `v1.112`
+**Commit:** `785cc23`
+**Status:** Stable
+
+The floating feedback button is now a full AI assistant panel with three tabs.
+
+### Features
+- **Ask AI tab**: Chat UI with starter question chips, conversation history, thinking animation
+- **Rate limiting**: Free tier (User role) = 5 questions/session; Owner/Admin/Developer = unlimited
+- **Feedback tab**: Original form preserved (type, priority, summary, details, file attachments)
+- **Docs tab**: Quick links to GitHub docs pages + "Ask the assistant" CTA
+- Float button icon changed from `MessageSquarePlus` to `Bot`
+- `/api/assistant` route: `claude-sonnet-4-5`, 600 max tokens, last-6 message history window, graceful error fallback
+
+### Files Changed
+| File | Change type |
+|------|------------|
+| `src/components/feedback-widget.tsx` | Rewritten (3-tab assistant panel) |
+| `src/app/api/assistant/route.ts` | Created (Anthropic API proxy with system prompt) |
+
+### Rollback
+```bash
+git checkout v1.111
+```
+
+---
+
+## v1.111 — Settings: Owner Lock Panel, Transfer UI, API Keys Split
+**Date:** 2026-03-28
+**Tag:** `v1.111`
+**Commit:** `c53b927`
+**Status:** Stable
+
+### Changes
+- **Owner role lock**: Role select replaced with orange locked panel; Owner cannot self-demote
+- **Ownership transfer wizard**: Enter recipient email → confirm dialog → 24-hr countdown → Cancel button
+- **API Keys page**: Split into "AI Model Providers" (Anthropic/env, Groq, OpenAI) and "Data Sources"; Anthropic key shown as server env var with Foundation Model badge link
+- **About tab**: All values now read from `PLATFORM_CONFIG` (no more hardcoded strings)
+- Save confirmation banner persists org email, LinkedIn, X, ORCID fields
+
+### Files Changed
+| File | Change type |
+|------|------------|
+| `src/app/settings/page.tsx` | Modified (owner UI, transfer wizard, API key split) |
+
+### Rollback
+```bash
+git checkout v1.110
+```
+
+---
+
+## v1.110 — Owner Role Protection: 24-hr Ownership Transfer
+**Date:** 2026-03-28
+**Tag:** `v1.110`
+**Commit:** `7e84f16`
+**Status:** Stable
+
+### Rule
+An Owner cannot downgrade their own role. To transfer ownership:
+1. Owner nominates a recipient email in Settings → Profile → Transfer Ownership
+2. A 24-hour cooling-off period begins (cancellable during this window)
+3. After 24 hr the transfer auto-completes; the previous Owner becomes Admin
+
+### Implementation
+- `User` interface extended with `pendingOwnerTransfer?: { toEmail: string; initiatedAt: string }`
+- `initiateOwnerTransfer(toEmail)` added to `AuthContext`
+- `cancelOwnerTransfer()` added to `AuthContext`
+- Both functions persist changes via `saveUserToDB` → localStorage
+
+### Files Changed
+| File | Change type |
+|------|------------|
+| `src/lib/auth-context.tsx` | Modified (pendingOwnerTransfer type + two new methods) |
+
+### Rollback
+```bash
+git checkout v1.109
+```
+
+---
+
 ## v1.108 — Fix: Profile Fields Now Persist Correctly (localStorage)
 **Date:** 2026-03-28
 **Tag:** `v1.108`
