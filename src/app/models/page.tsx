@@ -8,7 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 // ── Types ────────────────────────────────────────────────────────────────────
 
 type ModelStatus = "connected" | "available" | "local" | "not_installed";
-type ModelProvider = "Anthropic" | "OpenAI" | "Google" | "Microsoft" | "Meta" | "UAB SysPAI" | "Mistral";
+type ModelProvider = "Anthropic" | "OpenAI" | "Google" | "Microsoft" | "Meta" | "UAB SysPAI" | "Mistral" | "FROGENT Lab" | "THU-ATOM";
 type SortKey = "arenaElo" | "hfStars" | "contextK" | "inputPer1M" | "releaseDate" | "paramB";
 
 // ── Leaderboard entry ─────────────────────────────────────────────────────────
@@ -125,6 +125,12 @@ interface FoundationModel {
   description: string;
   safetyFiltered: boolean;
   domainTuned: boolean;
+  /** If true, shown as an agentic framework rather than a single LLM */
+  isAgentSystem?: boolean;
+  /** Paper or project link */
+  paperUrl?: string;
+  /** MCP plugin page anchor for "Setup via MCP" button */
+  mcpPluginId?: string;
 }
 
 // ── Model catalogue ───────────────────────────────────────────────────────────
@@ -268,6 +274,46 @@ const models: FoundationModel[] = [
     safetyFiltered: true,
     domainTuned: false,
   },
+  {
+    id: "frogent",
+    name: "FROGENT",
+    version: "arXiv:2508.10760",
+    provider: "FROGENT Lab",
+    status: "not_installed",
+    useCase: ["End-to-end drug design", "Multi-agent orchestration", "Retrosynthesis", "ADMET screening"],
+    contextK: 0,
+    inputPer1M: null,
+    outputPer1M: null,
+    latencyMs: 0,
+    uptime: 0,
+    hasKey: false,
+    description: "Full-process drug design multi-agent system with four coordinated agents: Orchestrate (workflow planning), Retrieve (PubMed/PDB/DrugBank), Forge (molecule generation via TargetDiff, MolCRAFT, SAFE), and Gauge (ADMET + docking validation via QVina/PLIP). Integrates via MCP.",
+    safetyFiltered: false,
+    domainTuned: true,
+    isAgentSystem: true,
+    paperUrl: "https://arxiv.org/abs/2508.10760",
+    mcpPluginId: "frogent-mcp",
+  },
+  {
+    id: "drugclip",
+    name: "DrugCLIP",
+    version: "NeurIPS 2023 · Science 2026",
+    provider: "THU-ATOM",
+    status: "not_installed",
+    useCase: ["Virtual screening", "Ligand-pocket embedding", "Ultra-fast docking"],
+    contextK: 0,
+    inputPer1M: null,
+    outputPer1M: null,
+    latencyMs: 0,
+    uptime: 0,
+    hasKey: false,
+    description: "Contrastive learning model that encodes protein binding pockets and drug molecules into a shared 128-dim embedding space — enabling ultra-fast virtual screening (up to 10M× faster than docking). Model weights available on HuggingFace; runs locally via Python.",
+    safetyFiltered: false,
+    domainTuned: true,
+    isAgentSystem: false,
+    paperUrl: "https://arxiv.org/abs/2310.06367",
+    mcpPluginId: "drugclip-jupyter",
+  },
 ];
 
 // ── Usage mock data ───────────────────────────────────────────────────────────
@@ -282,13 +328,15 @@ const totalCost = usageMock.reduce((s, r) => s + r.costUSD, 0);
 // ── Config maps ───────────────────────────────────────────────────────────────
 
 const providerBadge: Record<ModelProvider, string> = {
-  Anthropic:    "bg-orange-100 text-orange-800 dark:bg-orange-900/40 dark:text-orange-300",
-  OpenAI:       "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300",
-  Google:       "bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300",
-  Microsoft:    "bg-sky-100 text-sky-800 dark:bg-sky-900/40 dark:text-sky-300",
-  Meta:         "bg-indigo-100 text-indigo-800 dark:bg-indigo-900/40 dark:text-indigo-300",
-  "UAB SysPAI": "bg-purple-100 text-purple-800 dark:bg-purple-900/40 dark:text-purple-300",
-  Mistral:      "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/40 dark:text-yellow-300",
+  Anthropic:      "bg-orange-100 text-orange-800 dark:bg-orange-900/40 dark:text-orange-300",
+  OpenAI:         "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300",
+  Google:         "bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300",
+  Microsoft:      "bg-sky-100 text-sky-800 dark:bg-sky-900/40 dark:text-sky-300",
+  Meta:           "bg-indigo-100 text-indigo-800 dark:bg-indigo-900/40 dark:text-indigo-300",
+  "UAB SysPAI":   "bg-purple-100 text-purple-800 dark:bg-purple-900/40 dark:text-purple-300",
+  Mistral:        "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/40 dark:text-yellow-300",
+  "FROGENT Lab":  "bg-fuchsia-100 text-fuchsia-800 dark:bg-fuchsia-900/40 dark:text-fuchsia-300",
+  "THU-ATOM":     "bg-cyan-100 text-cyan-800 dark:bg-cyan-900/40 dark:text-cyan-300",
 };
 
 const statusConfig: Record<ModelStatus, { dot: string; label: string; text: string }> = {
@@ -438,12 +486,27 @@ export default function ModelsPage() {
                         {model.domainTuned && (
                           <span className="rounded-full bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300 px-2 py-0.5 text-[10px] whitespace-nowrap">Domain-tuned</span>
                         )}
+                        {model.isAgentSystem && (
+                          <span className="rounded-full bg-fuchsia-100 text-fuchsia-700 dark:bg-fuchsia-900/40 dark:text-fuchsia-300 px-2 py-0.5 text-[10px] whitespace-nowrap">Agent System</span>
+                        )}
                       </div>
                     </div>
                   </CardHeader>
 
                   <CardContent className="flex flex-col flex-1 space-y-3">
                     <p className="text-xs text-muted-foreground leading-relaxed">{model.description}</p>
+
+                    {model.paperUrl && (
+                      <a
+                        href={model.paperUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 text-[10px] text-blue-600 dark:text-blue-400 hover:underline"
+                      >
+                        <svg className="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+                        Read paper →
+                      </a>
+                    )}
 
                     <div className="flex flex-wrap gap-1">
                       {model.useCase.map((u) => (
@@ -519,7 +582,24 @@ export default function ModelsPage() {
                           <button className="text-muted-foreground hover:text-destructive transition-colors text-xs">Uninstall</button>
                         </div>
                       )}
-                      {model.status === "not_installed" && (
+                      {model.status === "not_installed" && model.isAgentSystem && (
+                        <a
+                          href={`/plugins#${model.mcpPluginId ?? ""}`}
+                          className="w-full rounded-md bg-primary text-primary-foreground px-3 py-2 text-xs font-medium hover:bg-primary/90 transition-colors flex items-center justify-center gap-1.5"
+                        >
+                          🔌 Setup via MCP → Tool Plugins
+                        </a>
+                      )}
+                      {model.status === "not_installed" && !model.isAgentSystem && model.mcpPluginId && (
+                        <a
+                          href={`/plugins#${model.mcpPluginId}`}
+                          className="w-full rounded-md bg-primary text-primary-foreground px-3 py-2 text-xs font-medium hover:bg-primary/90 transition-colors flex items-center justify-center gap-1.5"
+                        >
+                          <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2v14M5 9l7 7 7-7"/><path d="M5 22h14"/></svg>
+                          Install via Tool Plugins
+                        </a>
+                      )}
+                      {model.status === "not_installed" && !model.isAgentSystem && !model.mcpPluginId && (
                         <button className="w-full rounded-md bg-primary text-primary-foreground px-3 py-2 text-xs font-medium hover:bg-primary/90 transition-colors flex items-center justify-center gap-1.5">
                           <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2v14M5 9l7 7 7-7"/><path d="M5 22h14"/></svg>
                           Install Locally (Ollama)
