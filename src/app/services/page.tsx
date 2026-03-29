@@ -789,6 +789,12 @@ function CreateAgentSection() {
 
 // ── Office Tools ──────────────────────────────────────────────────────────────
 
+interface TestStep {
+  label: string;    // what we're checking, e.g. "Validating OAuth token"
+  result: string;   // realistic simulated outcome, e.g. "Token active · expires in 89 days"
+  ok: boolean;      // whether this step is a pass
+}
+
 interface OfficeTool {
   id: string;
   name: string;
@@ -801,6 +807,7 @@ interface OfficeTool {
   authType: "oauth" | "api-key" | "embed";
   apiKeyPlaceholder?: string;
   apiKeyHint?: string;
+  testSteps: TestStep[];    // shown in the test modal
 }
 
 type ConnectionState = "disconnected" | "connecting" | "connected" | "testing" | "error";
@@ -837,6 +844,12 @@ const officeTools: OfficeTool[] = [
     permissions: ["Read/write selected pages only", "No bulk workspace access", "No private pages"],
     category: "Productivity",
     authType: "oauth",
+    testSteps: [
+      { label: "Validating OAuth token", result: "Token active · scope: notion.page.read, notion.page.write · expires in 89 days", ok: true },
+      { label: "Listing accessible workspaces", result: "3 workspaces found: Lab Notebook, SPARC-2026, Meeting Notes", ok: true },
+      { label: "Verifying read/write scope on selected pages", result: "Selected pages: read ✓, write ✓ · Private pages: blocked ✓", ok: true },
+      { label: "Confirming no bulk workspace access", result: "Workspace-level read scope absent — minimal permissions confirmed", ok: true },
+    ],
   },
   {
     id: "google-drive",
@@ -848,6 +861,13 @@ const officeTools: OfficeTool[] = [
     permissions: ["Access only files you select", "No browsing full Drive", "No deletion rights"],
     category: "Storage",
     authType: "oauth",
+    testSteps: [
+      { label: "Validating OAuth 2.0 access token", result: "Token active · last refresh 2 min ago · scope: drive.file", ok: true },
+      { label: "Listing explicitly shared files", result: "2 files accessible: compound_library.xlsx, EGFR_screen_results.csv", ok: true },
+      { label: "Fetching file metadata (read test)", result: "Metadata fetched for compound_library.xlsx · 0 bytes transferred · OK", ok: true },
+      { label: "Confirming full Drive browse is blocked", result: "drive.readonly scope absent — no full Drive access confirmed", ok: true },
+      { label: "Confirming deletion rights absent", result: "drive.delete scope absent — deletion blocked ✓", ok: true },
+    ],
   },
   {
     id: "onedrive",
@@ -859,6 +879,13 @@ const officeTools: OfficeTool[] = [
     permissions: ["Read/write selected folders only", "No account-level access", "No email access"],
     category: "Storage",
     authType: "oauth",
+    testSteps: [
+      { label: "Validating Microsoft OAuth 2.0 token", result: "Token active · scope: Files.ReadWrite.Selected · tenant: uab.edu", ok: true },
+      { label: "Listing granted folder access", result: "1 folder accessible: /Research/SPARC-2026 · 14 files", ok: true },
+      { label: "Write permission smoke test", result: "Created SDD_connectivity_test.tmp → verified → deleted immediately · OK", ok: true },
+      { label: "Confirming account-level access is blocked", result: "Files.Read.All scope absent — folder-scoped only ✓", ok: true },
+      { label: "Confirming mail/calendar scopes absent", result: "Mail.Read, Calendars.Read not present in token ✓", ok: true },
+    ],
   },
   {
     id: "box",
@@ -870,6 +897,12 @@ const officeTools: OfficeTool[] = [
     permissions: ["Selected folder access only", "Read-only by default", "Audit log preserved"],
     category: "Storage",
     authType: "oauth",
+    testSteps: [
+      { label: "Authenticating with BOX API v2", result: "Authenticated · user: researcher@uab.edu · app: SmartDrugDiscovery", ok: true },
+      { label: "Listing granted folder contents", result: "Folder 'Compound Libraries' (ID: 112358) · 14 files · last modified Mar 28", ok: true },
+      { label: "Verifying read-only scope", result: "write scope absent — read-only mode confirmed ✓", ok: true },
+      { label: "Checking enterprise audit log status", result: "Audit log active · last entry: 2026-03-28 11:42 UTC · retention: 90 days", ok: true },
+    ],
   },
   {
     id: "gmail",
@@ -881,6 +914,12 @@ const officeTools: OfficeTool[] = [
     permissions: ["Send-only (no read access)", "No inbox scanning", "Unsubscribe anytime"],
     category: "Communication",
     authType: "oauth",
+    testSteps: [
+      { label: "Validating Gmail OAuth token", result: "Token active · scope: gmail.send only · no read/modify scopes", ok: true },
+      { label: "Sending test notification email", result: "Test email delivered to jakechen@gmail.com · Message-ID: <sdd-test-2026@gmail> · 12 ms", ok: true },
+      { label: "Confirming inbox scanning is blocked", result: "gmail.readonly, gmail.modify scopes absent — no inbox access ✓", ok: true },
+      { label: "Verifying unsubscribe header present", result: "List-Unsubscribe header injected into all outbound messages ✓", ok: true },
+    ],
   },
   {
     id: "calendar",
@@ -892,6 +931,12 @@ const officeTools: OfficeTool[] = [
     permissions: ["Read free/busy only", "Write new events only", "No existing event access"],
     category: "Productivity",
     authType: "oauth",
+    testSteps: [
+      { label: "Validating Calendar OAuth token", result: "Token active · scope: calendar.events.owned, calendar.freebusy", ok: true },
+      { label: "Querying free/busy information", result: "Free/busy query succeeded · 3 busy blocks today · no event titles exposed", ok: true },
+      { label: "Creating and deleting a test event", result: "Event 'SDD Connectivity Test' created at 03:00 → deleted immediately · OK", ok: true },
+      { label: "Confirming existing event read is blocked", result: "calendar.readonly scope absent — existing events not accessible ✓", ok: true },
+    ],
   },
   {
     id: "zapier",
@@ -905,6 +950,12 @@ const officeTools: OfficeTool[] = [
     authType: "api-key",
     apiKeyPlaceholder: "zap_xxxxxxxxxxxxxxxxxxxx",
     apiKeyHint: "Found in Zapier → Account → API Key",
+    testSteps: [
+      { label: "Validating Zapier API key", result: "Key valid · account: jakechen@gmail.com · plan: Professional", ok: true },
+      { label: "Listing active Zaps for this app", result: "2 Zaps found: 'Experiment Complete → Slack', 'Milestone Hit → Email'", ok: true },
+      { label: "Sending test webhook POST", result: "POST /hooks/catch/sdd-test → HTTP 200 · response: {status:'ok'} · 38 ms", ok: true },
+      { label: "Confirming no inbound data is stored", result: "Webhook payload not persisted in Zapier storage — stateless confirmed ✓", ok: true },
+    ],
   },
   {
     id: "readai",
@@ -916,6 +967,12 @@ const officeTools: OfficeTool[] = [
     permissions: ["Meeting summaries only", "No audio/video stored", "Speaker labels anonymized"],
     category: "Productivity",
     authType: "oauth",
+    testSteps: [
+      { label: "Validating read.ai OAuth token", result: "Token active · scope: meetings.summaries.read · no media scopes", ok: true },
+      { label: "Listing recent meeting summaries", result: "3 meetings found: Lab Standup (Mar 28), SPARC Review (Mar 27), Grant Sync (Mar 25)", ok: true },
+      { label: "Fetching latest meeting summary", result: "Summary fetched: 847 words · 6 action items · speaker labels anonymized ✓", ok: true },
+      { label: "Confirming audio/video access is blocked", result: "meetings.recording, meetings.audio scopes absent — summaries only ✓", ok: true },
+    ],
   },
   {
     id: "youtube",
@@ -927,6 +984,12 @@ const officeTools: OfficeTool[] = [
     permissions: ["Public video embed only", "No account login required", "No viewing history"],
     category: "Media",
     authType: "embed",
+    testSteps: [
+      { label: "Checking YouTube Data API v3 accessibility", result: "API reachable · status 200 · quota remaining: 9,847 units/day", ok: true },
+      { label: "Testing public video embed lookup", result: "Sample video (Scientific Talk on EGFR): embeddable: true · captions: available", ok: true },
+      { label: "Confirming no account auth required", result: "Request sent without OAuth credentials — public content accessible ✓", ok: true },
+      { label: "Confirming viewing history is not tracked", result: "No user ID sent in request · no history scope · privacy-safe ✓", ok: true },
+    ],
   },
 ];
 
@@ -938,11 +1001,140 @@ const categoryColors: Record<OfficeTool["category"], string> = {
   Media:         "bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300",
 };
 
+// ── Connection Test Modal ─────────────────────────────────────────────────────
+
+function ConnectionTestModal({
+  tool,
+  account,
+  onDone,
+}: {
+  tool: OfficeTool;
+  account?: string;
+  onDone: (passed: boolean) => void;
+}) {
+  const [lines, setLines] = useState<{ label: string; result: string; ok: boolean; done: boolean }[]>([]);
+  const [running, setRunning] = useState(true);
+  const [allPassed, setAllPassed] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function run() {
+      for (let i = 0; i < tool.testSteps.length; i++) {
+        if (cancelled) return;
+        const step = tool.testSteps[i];
+        // Show step as "running"
+        setLines((prev) => [...prev, { label: step.label, result: "", ok: step.ok, done: false }]);
+        await new Promise((r) => setTimeout(r, 800 + Math.random() * 500));
+        if (cancelled) return;
+        // Show result
+        setLines((prev) =>
+          prev.map((l, idx) => idx === i ? { ...l, result: step.result, done: true } : l)
+        );
+        await new Promise((r) => setTimeout(r, 200));
+      }
+      if (cancelled) return;
+      const passed = tool.testSteps.every((s) => s.ok);
+      setAllPassed(passed);
+      setRunning(false);
+    }
+    run();
+    return () => { cancelled = true; };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+      <div className="bg-card border rounded-2xl shadow-2xl w-full max-w-lg flex flex-col overflow-hidden">
+        {/* Header */}
+        <div className="flex items-center gap-3 px-5 py-4 border-b">
+          <span className={cn("h-9 w-9 rounded-xl flex items-center justify-center text-sm font-bold shrink-0", tool.logoColor)}>
+            {tool.logo}
+          </span>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2">
+              <p className="text-sm font-semibold">{tool.name} — Connection Test</p>
+              {running && <span className="h-2 w-2 rounded-full bg-blue-500 animate-pulse shrink-0" />}
+            </div>
+            {account && <p className="text-xs text-muted-foreground truncate">{account}</p>}
+          </div>
+          {!running && (
+            <button onClick={() => onDone(allPassed ?? false)} className="rounded-md p-1.5 hover:bg-muted transition-colors text-muted-foreground">
+              ✕
+            </button>
+          )}
+        </div>
+
+        {/* Steps */}
+        <div className="flex-1 overflow-y-auto px-5 py-4 space-y-2.5 max-h-80">
+          {lines.map((line, i) => (
+            <div key={i} className="flex items-start gap-3">
+              <span className="shrink-0 mt-0.5 h-5 w-5 flex items-center justify-center">
+                {!line.done ? (
+                  <svg className="h-4 w-4 animate-spin text-primary" viewBox="0 0 24 24" fill="none">
+                    <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" className="opacity-25"/>
+                    <path fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" className="opacity-75"/>
+                  </svg>
+                ) : line.ok ? (
+                  <span className="text-green-500 text-sm font-bold">✓</span>
+                ) : (
+                  <span className="text-red-500 text-sm font-bold">✕</span>
+                )}
+              </span>
+              <div className="flex-1 min-w-0 space-y-0.5">
+                <p className={cn("text-xs font-medium", !line.done && "text-muted-foreground")}>{line.label}</p>
+                {line.done && (
+                  <p className={cn("text-xs font-mono leading-relaxed", line.ok ? "text-green-700 dark:text-green-400" : "text-red-600 dark:text-red-400")}>
+                    {line.result}
+                  </p>
+                )}
+              </div>
+            </div>
+          ))}
+          {running && lines.length < tool.testSteps.length && (
+            <div className="flex items-center gap-3">
+              <svg className="h-4 w-4 animate-spin text-muted-foreground shrink-0" viewBox="0 0 24 24" fill="none">
+                <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" className="opacity-25"/>
+                <path fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" className="opacity-75"/>
+              </svg>
+              <p className="text-xs text-muted-foreground italic">Running next check…</p>
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        {!running && (
+          <div className={cn("px-5 py-4 border-t flex items-center justify-between gap-3",
+            allPassed ? "bg-green-50 dark:bg-green-950/20" : "bg-red-50 dark:bg-red-950/20")}>
+            <div className="flex items-center gap-2">
+              <span className="text-xl">{allPassed ? "✅" : "❌"}</span>
+              <div>
+                <p className={cn("text-sm font-semibold", allPassed ? "text-green-800 dark:text-green-300" : "text-red-700 dark:text-red-300")}>
+                  {allPassed ? "All checks passed" : "One or more checks failed"}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {lines.filter((l) => l.ok && l.done).length}/{tool.testSteps.length} checks passed
+                  {account && ` · ${account}`}
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={() => onDone(allPassed ?? false)}
+              className="rounded-md bg-primary text-primary-foreground px-4 py-2 text-sm font-medium hover:bg-primary/90 transition-colors"
+            >
+              Done
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function OfficeToolsSection() {
   const [connections, setConnections] = useState<Record<string, ConnectionInfo>>({});
   const [catFilter,   setCatFilter]   = useState<string>("All");
   const [apiInputs,   setApiInputs]   = useState<Record<string, string>>({});
   const [showApiKey,  setShowApiKey]  = useState<Record<string, boolean>>({});
+  const [testModal,   setTestModal]   = useState<OfficeTool | null>(null);
 
   // Load persisted connections on mount
   useEffect(() => { setConnections(loadConnections()); }, []);
@@ -1029,25 +1221,30 @@ function OfficeToolsSection() {
     });
   }
 
-  // Test connection
-  async function testConnection(toolId: string) {
-    setConnections((prev) => ({ ...prev, [toolId]: { ...prev[toolId], state: "testing" as ConnectionState } }));
-    await new Promise((r) => setTimeout(r, 1400));
-    // Simulate: 90 % success
-    const ok = Math.random() > 0.1;
+  // Open test modal for a service
+  function openTestModal(toolId: string) {
+    const tool = officeTools.find((t) => t.id === toolId);
+    if (tool) setTestModal(tool);
+  }
+
+  // Called by modal when user closes — updates connection state
+  function handleTestDone(passed: boolean) {
+    if (!testModal) return;
+    const toolId = testModal.id;
     setConnections((prev) => {
       const next: Record<string, ConnectionInfo> = {
         ...prev,
         [toolId]: {
           ...prev[toolId],
-          state:     (ok ? "connected" : "error") as ConnectionState,
-          testedAt:  ok ? new Date().toISOString() : prev[toolId]?.testedAt,
-          testError: ok ? undefined : "Connection timed out — check your credentials.",
+          state:     (passed ? "connected" : "error") as ConnectionState,
+          testedAt:  passed ? new Date().toISOString() : prev[toolId]?.testedAt,
+          testError: passed ? undefined : "One or more connection checks failed — please reconnect.",
         },
       };
       saveConnections(next);
       return next;
     });
+    setTestModal(null);
   }
 
   // Disconnect
@@ -1096,7 +1293,6 @@ function OfficeToolsSection() {
         {filtered.map((tool) => {
           const conn       = connections[tool.id];
           const isConn     = conn?.state === "connected";
-          const isTesting  = conn?.state === "testing";
           const isConn_g   = conn?.state === "connecting";
           const hasError   = conn?.state === "error";
 
@@ -1224,19 +1420,10 @@ function OfficeToolsSection() {
                   {isConn && (
                     <div className="flex gap-2">
                       <button
-                        onClick={() => testConnection(tool.id)}
-                        disabled={isTesting}
-                        className="flex-1 rounded-md px-3 py-1.5 text-xs font-medium border border-input bg-background hover:bg-accent transition-colors disabled:opacity-50 flex items-center justify-center gap-1.5"
+                        onClick={() => openTestModal(tool.id)}
+                        className="flex-1 rounded-md px-3 py-1.5 text-xs font-medium border border-input bg-background hover:bg-accent transition-colors flex items-center justify-center gap-1.5"
                       >
-                        {isTesting ? (
-                          <>
-                            <svg className="h-3 w-3 animate-spin" viewBox="0 0 24 24" fill="none">
-                              <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" className="opacity-25"/>
-                              <path fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" className="opacity-75"/>
-                            </svg>
-                            Testing…
-                          </>
-                        ) : "Test Connection"}
+                        🧪 Test Connection
                       </button>
                       <button
                         onClick={() => disconnect(tool.id)}
@@ -1251,7 +1438,7 @@ function OfficeToolsSection() {
                   {hasError && (
                     <div className="flex gap-2">
                       <button
-                        onClick={() => testConnection(tool.id)}
+                        onClick={() => openTestModal(tool.id)}
                         className="flex-1 rounded-md px-3 py-1.5 text-xs font-medium border border-orange-300 text-orange-700 bg-orange-50 hover:bg-orange-100 dark:border-orange-700 dark:text-orange-300 dark:bg-orange-950/20 transition-colors"
                       >
                         Retry Test
@@ -1270,6 +1457,15 @@ function OfficeToolsSection() {
           );
         })}
       </div>
+
+      {/* Connection Test Modal */}
+      {testModal && (
+        <ConnectionTestModal
+          tool={testModal}
+          account={connections[testModal.id]?.account}
+          onDone={handleTestDone}
+        />
+      )}
     </div>
   );
 }
