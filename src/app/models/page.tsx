@@ -426,15 +426,19 @@ export default function ModelsPage() {
                         {model.provider}
                       </span>
                     </div>
-                    <div className="flex items-center gap-1.5 mt-1 flex-wrap">
-                      <span className={cn("h-1.5 w-1.5 rounded-full shrink-0", sc.dot)} />
-                      <span className={cn("text-xs font-medium", sc.text)}>{sc.label}</span>
-                      {model.safetyFiltered && (
-                        <span className="ml-auto rounded-full bg-muted px-2 py-0.5 text-[10px] text-muted-foreground">Safety filtered</span>
-                      )}
-                      {model.domainTuned && (
-                        <span className="rounded-full bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300 px-2 py-0.5 text-[10px]">Domain-tuned</span>
-                      )}
+                    <div className="flex items-center justify-between mt-1 gap-2">
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <span className={cn("h-1.5 w-1.5 rounded-full shrink-0", sc.dot)} />
+                        <span className={cn("text-xs font-medium", sc.text)}>{sc.label}</span>
+                      </div>
+                      <div className="flex items-center gap-1 flex-wrap justify-end">
+                        {model.safetyFiltered && (
+                          <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] text-muted-foreground whitespace-nowrap">Safety filtered</span>
+                        )}
+                        {model.domainTuned && (
+                          <span className="rounded-full bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300 px-2 py-0.5 text-[10px] whitespace-nowrap">Domain-tuned</span>
+                        )}
+                      </div>
                     </div>
                   </CardHeader>
 
@@ -516,7 +520,8 @@ export default function ModelsPage() {
                         </div>
                       )}
                       {model.status === "not_installed" && (
-                        <button className="w-full rounded-md border px-3 py-2 text-xs font-medium hover:bg-muted transition-colors">
+                        <button className="w-full rounded-md bg-primary text-primary-foreground px-3 py-2 text-xs font-medium hover:bg-primary/90 transition-colors flex items-center justify-center gap-1.5">
+                          <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2v14M5 9l7 7 7-7"/><path d="M5 22h14"/></svg>
                           Install Locally (Ollama)
                         </button>
                       )}

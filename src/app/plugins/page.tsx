@@ -16,6 +16,14 @@ interface TestStep {
   result: string;         // mock/real result to display
 }
 
+interface InstallStep {
+  title: string;
+  code?: string;          // code block to copy (bash, JSON, etc.)
+  note?: string;          // plain-text annotation
+  actionUrl?: string;     // optional external link
+  actionLabel?: string;   // label for the external link button
+}
+
 interface Plugin {
   id: string;
   name: string;
@@ -28,12 +36,13 @@ interface Plugin {
   pricing: PluginPricing;
   requiresKey: boolean;   // true = user must supply API key / login
   fair: { findable: boolean; accessible: boolean; interoperable: boolean; reusable: boolean };
-  installed: boolean;
-  connected?: boolean;
+  installed: boolean;     // hardcoded default (pre-installed at launch)
+  connected?: boolean;    // hardcoded default active connection
   connectedTools?: string[];
   category: string;
   compatibleWith: string[];
-  testSteps: TestStep[];  // demo sequence shown in Test modal
+  testSteps: TestStep[];
+  installInstructions?: InstallStep[];
 }
 
 // ── Type config ────────────────────────────────────────────────────────────────
@@ -99,6 +108,28 @@ const plugins: Plugin[] = [
     testSteps: [
       { label: 'target_associations("BRAF", disease="melanoma")', result: "✓ Score 0.94 · 23 genetic variants · 12 somatic mutations · L2G score 0.87" },
     ],
+    installInstructions: [
+      {
+        title: "Add to Claude Desktop config",
+        code: `{
+  "mcpServers": {
+    "open-targets": {
+      "command": "npx",
+      "args": ["-y", "@opentargets/ot-mcp-server"]
+    }
+  }
+}`,
+        note: 'Open claude_desktop_config.json (macOS: ~/Library/Application Support/Claude/claude_desktop_config.json) and merge this block into the "mcpServers" object.',
+      },
+      {
+        title: "Restart Claude Desktop",
+        note: "Quit and relaunch Claude Desktop. The Open Targets tools will appear in the tool selector (🔧 icon) in your next conversation.",
+      },
+      {
+        title: "Verify installation",
+        note: 'In a new Claude conversation, ask: "What are the top genetic targets for melanoma?" — Claude should call target_associations and return ranked results.',
+      },
+    ],
   },
   {
     id: "uniprot-api",
@@ -125,6 +156,21 @@ const plugins: Plugin[] = [
     testSteps: [
       { label: 'search_trials("BRAF inhibitor melanoma", phase=3, status=completed)', result: "✓ 18 trials found · NCT01227889 (BRIM-3) · NCT01584648 (coBRIM) · NCT01689519 (COMBI-v)" },
     ],
+    installInstructions: [
+      {
+        title: "No API key required — endpoint is public",
+        code: "# Base URL\nhttps://clinicaltrials.gov/api/v2\n\n# Example: search completed Phase 3 BRAF trials\ncurl \"https://clinicaltrials.gov/api/v2/studies?query.cond=BRAF+melanoma&filter.advanced=AREA%5BPhase%5DPHASE3&pageSize=5\"",
+        note: "ClinicalTrials.gov v2 API is open and requires no registration. Rate limit: 100 requests/min per IP.",
+      },
+      {
+        title: "Add as a custom API connector in Settings → Services",
+        note: 'Navigate to Services → Add-on Services → Custom APIs and enter the base URL above. SDD will proxy requests through its backend to avoid CORS issues.',
+      },
+      {
+        title: "Verify by clicking Mark as Installed below",
+        note: "Once added to Services, click Mark as Installed to enable the 🧪 Test button on this card.",
+      },
+    ],
   },
   {
     id: "alphafold-docker",
@@ -138,6 +184,32 @@ const plugins: Plugin[] = [
     testSteps: [
       { label: "predict_structure(sequence=BRAF_kinase_domain)", result: "✓ pLDDT 91.3 · TM-score vs 4MNE: 0.97 · ATP binding pocket identified · PDB generated" },
     ],
+    installInstructions: [
+      {
+        title: "Prerequisites",
+        note: "Requires: Docker Desktop, NVIDIA GPU ≥ 16 GB VRAM, CUDA 11.x driver, nvidia-container-toolkit. Estimated download size: ~4.5 GB.",
+      },
+      {
+        title: "Pull the Docker image",
+        code: "docker pull ghcr.io/deepmind/alphafold:v2.3.2",
+      },
+      {
+        title: "Run a structure prediction",
+        code: `docker run --rm --gpus all \\
+  -v $(pwd)/input:/input \\
+  -v $(pwd)/output:/output \\
+  ghcr.io/deepmind/alphafold:v2.3.2 \\
+  --fasta_paths=/input/sequence.fasta \\
+  --output_dir=/output \\
+  --model_preset=monomer \\
+  --max_template_date=2024-01-01`,
+        note: "Place your FASTA file at ./input/sequence.fasta. Output PDB will appear in ./output/.",
+      },
+      {
+        title: "Verify by clicking Mark as Installed below",
+        note: "Once the container runs successfully, mark as installed to unlock the Test demo on this card.",
+      },
+    ],
   },
   {
     id: "autodock-vina-docker",
@@ -150,6 +222,31 @@ const plugins: Plugin[] = [
     installed: false, category: "Docking", compatibleWith: ["A1", "A4"],
     testSteps: [
       { label: "dock(ligand=vemurafenib.sdf, receptor=4MNE.pdb)", result: "✓ Best pose: ΔG = -9.8 kcal/mol · RMSD vs crystal: 1.2 Å · Hinge contacts: T529, C532" },
+    ],
+    installInstructions: [
+      {
+        title: "Pull the Docker image",
+        code: "docker pull ghcr.io/ccsb-scripps/autodock-vina:v1.2.5-gpu",
+        note: "GPU version requires NVIDIA GPU + nvidia-container-toolkit. CPU-only: omit -gpu suffix.",
+      },
+      {
+        title: "Prepare receptor and ligand files",
+        code: `# Convert PDB to PDBQT (requires AutoDockTools or Open Babel)
+obabel receptor.pdb -O receptor.pdbqt -xr
+obabel ligand.sdf -O ligand.pdbqt --gen3d`,
+      },
+      {
+        title: "Run molecular docking",
+        code: `docker run --rm --gpus all -v $(pwd):/workspace \\
+  ghcr.io/ccsb-scripps/autodock-vina:v1.2.5-gpu \\
+  vina \\
+  --receptor /workspace/receptor.pdbqt \\
+  --ligand   /workspace/ligand.pdbqt \\
+  --center_x 10.5 --center_y 22.3 --center_z -8.1 \\
+  --size_x 25 --size_y 25 --size_z 25 \\
+  --exhaustiveness 32 --num_modes 9`,
+        note: "Set center_x/y/z to your binding site coordinates (from PDB or SiteMap).",
+      },
     ],
   },
   {
@@ -177,6 +274,28 @@ const plugins: Plugin[] = [
     testSteps: [
       { label: "cluster_cells(matrix=melanoma_10x.h5, resolution=0.6)", result: "✓ 12 clusters · CD8+ T cells: 18% · Tumor cells: 34% · BRAF+ cells: 91% of tumor cluster" },
     ],
+    installInstructions: [
+      {
+        title: "Create a conda environment",
+        code: "conda create -n scrnaseq python=3.10 -y\nconda activate scrnaseq",
+      },
+      {
+        title: "Install dependencies",
+        code: "pip install scanpy==1.9.6 leidenalg python-igraph scrublet anndata cellrank",
+        note: "Installation takes 3-5 minutes. Requires ~800 MB disk space.",
+      },
+      {
+        title: "Clone the pipeline repository",
+        code: "git clone https://github.com/broadinstitute/scrnaseq-pipeline\ncd scrnaseq-pipeline",
+        actionUrl: "https://github.com/broadinstitute/scrnaseq-pipeline",
+        actionLabel: "View on GitHub →",
+      },
+      {
+        title: "Launch JupyterLab",
+        code: "jupyter lab notebooks/01_preprocessing.ipynb",
+        note: "Open the notebook in your browser and follow the step-by-step analysis. Data files go in the data/ subdirectory.",
+      },
+    ],
   },
   {
     id: "netpharm-source",
@@ -189,6 +308,27 @@ const plugins: Plugin[] = [
     installed: false, category: "Network", compatibleWith: ["A2", "A3"],
     testSteps: [
       { label: 'build_network(drug="vemurafenib", disease="melanoma")', result: "✓ 147 nodes · 623 edges · Hub targets: BRAF, ERK2, MEK1 · Shortest path to apoptosis: 3 hops" },
+    ],
+    installInstructions: [
+      {
+        title: "Install from PyPI",
+        code: "pip install netpharm-toolkit",
+        note: "Requires Python ≥ 3.9. For GPU-accelerated graph algorithms, also install: pip install netpharm-toolkit[gpu]",
+      },
+      {
+        title: "Basic usage",
+        code: `from netpharm import NetworkBuilder
+
+net = NetworkBuilder()
+net.build(drug="vemurafenib", disease="melanoma")
+net.visualize()  # opens interactive network in browser
+
+# Get hub targets
+hubs = net.get_hubs(top_n=10)
+print(hubs)`,
+        actionUrl: "https://github.com/netpharm/toolkit",
+        actionLabel: "Documentation →",
+      },
     ],
   },
   {
@@ -242,6 +382,26 @@ const plugins: Plugin[] = [
       { label: "clip_structure() on ChEMBL compound page", result: "✓ SMILES, InChI, MW, logP, TPSA extracted → linked to compound asset" },
       { label: "clip_table() on ClinicalTrials.gov results", result: "✓ 18-row HTML table parsed → CSV asset attached to project" },
     ],
+    installInstructions: [
+      {
+        title: "Open the Chrome Web Store",
+        note: 'Search for "SmartDrugDiscovery" in the Chrome Web Store and click Add to Chrome.',
+        actionUrl: "https://chrome.google.com/webstore/search/SmartDrugDiscovery",
+        actionLabel: "Open Chrome Web Store →",
+      },
+      {
+        title: "Pin the extension",
+        note: "After installation, click the puzzle icon (🧩) in the Chrome toolbar → find SmartDrugDiscovery → click the pin icon to keep it visible.",
+      },
+      {
+        title: "Sign in with your ORCID",
+        note: "Click the SDD extension icon → Sign in with ORCID. Your projects and active session will sync automatically.",
+      },
+      {
+        title: "Test the clip function",
+        note: 'Visit any PubMed article page, select text, and right-click → "Clip to SDD" or use the keyboard shortcut Ctrl+Shift+C (Mac: ⌘+Shift+C).',
+      },
+    ],
   },
   {
     id: "sdd-powerpoint",
@@ -259,6 +419,26 @@ const plugins: Plugin[] = [
       { label: 'generate_slide("BRAF compound validation summary")', result: "✓ 6-slide deck: executive summary, target overview, A1–A10 heatmap, ADMET profile, literature evidence, go/no-go recommendation" },
       { label: 'export_survival_curve({ project_id: "P-001", format: "pptx" })', result: "✓ Kaplan-Meier chart embedded as editable PowerPoint chart object (not image)" },
       { label: 'insert_mcp_slide({ source: "pubmed", query: "BRAF V600E resistance mechanisms" })', result: "✓ 1 literature slide with top-3 abstracts, citation table, and key figure placeholder" },
+    ],
+    installInstructions: [
+      {
+        title: "Open Microsoft AppSource",
+        note: 'Search for "SmartDrugDiscovery" in AppSource and click Get it now.',
+        actionUrl: "https://appsource.microsoft.com/en-us/search?search=SmartDrugDiscovery",
+        actionLabel: "Open Microsoft AppSource →",
+      },
+      {
+        title: "Add to PowerPoint",
+        note: "In PowerPoint, go to Insert → Get Add-ins (or My Add-ins) → search for SmartDrugDiscovery → click Add.",
+      },
+      {
+        title: "Activate with your SDD account",
+        note: "The add-in panel will open on the right side of PowerPoint. Sign in with your ORCID credentials to connect to your projects.",
+      },
+      {
+        title: "Generate your first slide deck",
+        note: 'In the SDD panel, choose a project → click "Generate Deck" → select a template (Validation Summary, ADMET Report, or Cohort Analysis). The deck is inserted into your current presentation.',
+      },
     ],
   },
   {
@@ -282,6 +462,32 @@ const plugins: Plugin[] = [
       { label: 'get_availability({ person_ids: ["SC","RP"] })', result: "Sarah Chen: Available (80% capacity) · Raj Patel: Available (60% capacity)" },
       { label: 'get_project_history({ person_id: "SC" })', result: "5 oncology programs: BRAF (lead), EGFR, KRAS, CDK4/6, MEK — all IND-stage or later" },
     ],
+    installInstructions: [
+      {
+        title: "Add to Claude Desktop config",
+        code: `{
+  "mcpServers": {
+    "talent-kg": {
+      "command": "npx",
+      "args": ["-y", "@uab-syspai/talent-kg-mcp"],
+      "env": {
+        "TALENT_KG_ENDPOINT": "https://talent-kg.syspai.uab.edu",
+        "TALENT_KG_TOKEN": "<your-institutional-token>"
+      }
+    }
+  }
+}`,
+        note: 'Open claude_desktop_config.json and merge this block. Replace <your-institutional-token> with the token from your IT administrator.',
+      },
+      {
+        title: "Obtain your institutional token",
+        note: "Contact UAB SysPAI IT (syspai-it@uab.edu) to request a Talent KG access token. Tokens are issued per-user and linked to your ORCID identity.",
+      },
+      {
+        title: "Restart Claude Desktop",
+        note: "Quit and relaunch Claude Desktop. The talent_kg tools will appear in the tool selector in your next conversation.",
+      },
+    ],
   },
 ];
 
@@ -292,6 +498,145 @@ function FairBadge({ letter, met }: { letter: string; met: boolean }) {
     <span className={cn("h-6 w-6 rounded-full text-xs font-bold flex items-center justify-center", met ? "bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300" : "bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300")}>
       {letter}
     </span>
+  );
+}
+
+function CopyButton({ text }: { text: string }) {
+  const [copied, setCopied] = useState(false);
+  const copy = () => {
+    navigator.clipboard.writeText(text).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  };
+  return (
+    <button
+      onClick={copy}
+      className="absolute top-2 right-2 rounded-md bg-muted/80 hover:bg-muted border border-input px-2 py-1 text-[10px] font-medium transition-colors"
+      title="Copy to clipboard"
+    >
+      {copied ? "✓ Copied" : "Copy"}
+    </button>
+  );
+}
+
+// ── Install modal ─────────────────────────────────────────────────────────────
+
+function InstallModal({
+  plugin,
+  onClose,
+  onInstalled,
+}: {
+  plugin: Plugin;
+  onClose: () => void;
+  onInstalled: () => void;
+}) {
+  const steps = plugin.installInstructions ?? [];
+  const tc = typeConfig[plugin.type];
+
+  const handleDone = () => {
+    onInstalled();
+    onClose();
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" onClick={onClose}>
+      <div
+        className="bg-card border rounded-2xl shadow-2xl w-full max-w-xl flex flex-col overflow-hidden max-h-[90vh]"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="flex items-center gap-3 px-5 py-4 border-b shrink-0">
+          <div className="h-9 w-9 rounded-lg bg-primary/10 flex items-center justify-center shrink-0 text-lg">
+            {plugin.type === "mcp" ? "🔌" : plugin.type === "api" ? "🌐" : plugin.type === "docker" ? "🐳" : plugin.type === "jupyter" ? "📓" : "📦"}
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold truncate">Install — {plugin.name}</p>
+            <span className={cn("rounded-full px-2 py-0.5 text-[10px] font-medium", tc.badge)}>{tc.label}</span>
+          </div>
+          <button
+            onClick={onClose}
+            className="rounded-md p-1.5 hover:bg-muted transition-colors text-muted-foreground shrink-0"
+          >
+            <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M18 6L6 18M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        {/* Steps */}
+        <div className="flex-1 overflow-y-auto px-5 py-4 space-y-5">
+          {steps.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No install instructions available for this plugin.</p>
+          ) : (
+            steps.map((step, i) => (
+              <div key={i} className="space-y-2">
+                {/* Step title */}
+                <div className="flex items-center gap-2">
+                  <span className="h-5 w-5 rounded-full bg-primary/15 text-primary flex items-center justify-center text-[11px] font-bold shrink-0">
+                    {i + 1}
+                  </span>
+                  <p className="text-sm font-medium">{step.title}</p>
+                </div>
+
+                {/* Code block */}
+                {step.code && (
+                  <div className="relative">
+                    <pre className="rounded-lg bg-muted/60 border border-border px-4 py-3 text-[11px] font-mono leading-relaxed overflow-x-auto whitespace-pre pr-16">
+                      {step.code}
+                    </pre>
+                    <CopyButton text={step.code} />
+                  </div>
+                )}
+
+                {/* Note */}
+                {step.note && (
+                  <p className="text-xs text-muted-foreground leading-relaxed pl-7">{step.note}</p>
+                )}
+
+                {/* External action */}
+                {step.actionUrl && (
+                  <div className="pl-7">
+                    <a
+                      href={step.actionUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1.5 rounded-md border border-input bg-background px-3 py-1.5 text-xs hover:bg-accent transition-colors"
+                    >
+                      {step.actionLabel ?? "Open link →"}
+                    </a>
+                  </div>
+                )}
+              </div>
+            ))
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="border-t px-5 py-3 shrink-0 flex items-center justify-between gap-3">
+          <p className="text-xs text-muted-foreground">
+            Follow all steps above, then click <span className="font-semibold text-foreground">Mark as Installed</span> to enable the 🧪 Test button.
+          </p>
+          <div className="flex gap-2 shrink-0">
+            <button
+              onClick={onClose}
+              className="rounded-md border px-4 py-2 text-sm hover:bg-muted transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleDone}
+              className="rounded-md bg-primary text-primary-foreground px-4 py-2 text-sm font-medium hover:bg-primary/90 transition-colors flex items-center gap-1.5"
+            >
+              <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                <path d="M20 6L9 17l-5-5" />
+              </svg>
+              Mark as Installed
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -408,9 +753,17 @@ function TestModal({ plugin, onClose }: { plugin: Plugin; onClose: () => void })
   );
 }
 
-// ── Credential modal (User role — install paid/freemium plugins) ──────────────
+// ── Credential modal (connect paid/freemium plugins with API key) ──────────────
 
-function CredentialModal({ plugin, onClose }: { plugin: Plugin; onClose: () => void }) {
+function CredentialModal({
+  plugin,
+  onClose,
+  onConnect,
+}: {
+  plugin: Plugin;
+  onClose: () => void;
+  onConnect: () => void;
+}) {
   const [apiKey, setApiKey] = useState("");
   const [show, setShow] = useState(false);
   return (
@@ -440,7 +793,7 @@ function CredentialModal({ plugin, onClose }: { plugin: Plugin; onClose: () => v
           <button onClick={onClose} className="rounded-md border px-4 py-2 text-sm hover:bg-muted transition-colors">Cancel</button>
           <button
             disabled={!apiKey.trim()}
-            onClick={onClose}
+            onClick={() => { if (apiKey.trim()) { onConnect(); onClose(); } }}
             className="rounded-md bg-primary text-primary-foreground px-4 py-2 text-sm font-medium hover:bg-primary/90 disabled:opacity-40 transition-colors"
           >
             Connect
@@ -453,7 +806,15 @@ function CredentialModal({ plugin, onClose }: { plugin: Plugin; onClose: () => v
 
 // ── Uninstall modal ────────────────────────────────────────────────────────────
 
-function UninstallModal({ plugin, onClose }: { plugin: Plugin; onClose: () => void }) {
+function UninstallModal({
+  plugin,
+  onClose,
+  onConfirm,
+}: {
+  plugin: Plugin;
+  onClose: () => void;
+  onConfirm: () => void;
+}) {
   const [typed, setTyped] = useState("");
   const ready = typed.trim().toLowerCase() === "yes";
   return (
@@ -505,7 +866,7 @@ function UninstallModal({ plugin, onClose }: { plugin: Plugin; onClose: () => vo
             Cancel
           </button>
           <button
-            onClick={() => { if (ready) onClose(); }}
+            onClick={() => { if (ready) { onConfirm(); onClose(); } }}
             disabled={!ready}
             className={cn(
               "rounded-md px-4 py-2 text-sm font-medium transition-colors flex items-center gap-2",
@@ -537,10 +898,48 @@ export default function PluginsPage() {
   const [typeFilter, setTypeFilter] = useState<PluginType | "all">("all");
   const [search, setSearch]         = useState("");
   const [testPlugin, setTestPlugin] = useState<Plugin | null>(null);
-  const [credPlugin, setCredPlugin]       = useState<Plugin | null>(null);
+  const [credPlugin, setCredPlugin]         = useState<Plugin | null>(null);
   const [uninstallPlugin, setUninstallPlugin] = useState<Plugin | null>(null);
+  const [installPlugin, setInstallPlugin]   = useState<Plugin | null>(null);
 
-  const isDev   = can(role, "viewIntegrationGuide");
+  // ── Installed state backed by localStorage ──────────────────────────────────
+  // Start with hardcoded defaults (plugins where installed: true)
+  const [installedIds, setInstalledIds] = useState<Set<string>>(
+    () => new Set(plugins.filter((p) => p.installed).map((p) => p.id))
+  );
+
+  // Merge with any previously saved installs from localStorage
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem("sdd-plugin-installs");
+      if (stored) {
+        const arr: string[] = JSON.parse(stored);
+        setInstalledIds((prev) => new Set(Array.from(prev).concat(arr)));
+      }
+    } catch {
+      // ignore parse errors
+    }
+  }, []);
+
+  const markInstalled = (id: string) => {
+    setInstalledIds((prev) => {
+      const next = new Set(Array.from(prev).concat([id]));
+      try { localStorage.setItem("sdd-plugin-installs", JSON.stringify(Array.from(next))); } catch { /* noop */ }
+      return next;
+    });
+  };
+
+  const markUninstalled = (id: string) => {
+    setInstalledIds((prev) => {
+      const next = new Set(prev);
+      next.delete(id);
+      try { localStorage.setItem("sdd-plugin-installs", JSON.stringify(Array.from(next))); } catch { /* noop */ }
+      return next;
+    });
+  };
+
+  // ── Derived helpers ─────────────────────────────────────────────────────────
+  const isDev    = can(role, "viewIntegrationGuide");
   const canAdmin = can(role, "uninstallPlugin");
 
   const filtered = plugins
@@ -605,9 +1004,11 @@ export default function PluginsPage() {
         {filtered.map((plugin) => {
           const tc = typeConfig[plugin.type];
           const pc = pricingBadge[plugin.pricing];
-          const testable = plugin.installed || plugin.connected;
+          const isInstalled = installedIds.has(plugin.id);
+          const isConnected = plugin.connected ?? false;
+          const testable = isInstalled || isConnected;
           return (
-            <Card key={plugin.id} className={cn("flex flex-col", plugin.connected && "border-green-200 dark:border-green-800")}>
+            <Card key={plugin.id} className={cn("flex flex-col", isConnected && "border-green-200 dark:border-green-800")}>
               <CardHeader className="pb-2">
                 <div className="flex items-start justify-between gap-2">
                   <CardTitle className="text-base leading-snug">{plugin.name}</CardTitle>
@@ -644,7 +1045,7 @@ export default function PluginsPage() {
                 </div>
 
                 {/* Connected tools — shown only to Developers+ */}
-                {plugin.connected && plugin.connectedTools && isDev && (
+                {isConnected && plugin.connectedTools && isDev && (
                   <div className="rounded-md bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800 p-2">
                     <p className="text-xs font-medium text-green-800 dark:text-green-300 mb-1 flex items-center gap-1">
                       <span className="h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse" />
@@ -659,7 +1060,7 @@ export default function PluginsPage() {
                 )}
 
                 {/* Connected indicator for Users (simplified) */}
-                {plugin.connected && !isDev && (
+                {isConnected && !isDev && (
                   <div className="flex items-center gap-1.5 text-xs text-green-600 dark:text-green-400">
                     <span className="h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse" />
                     Connected and ready to use
@@ -669,13 +1070,14 @@ export default function PluginsPage() {
                 {/* Actions */}
                 <div className="mt-auto pt-2 flex gap-2">
                   {/* Primary action */}
-                  {plugin.connected ? (
+                  {isConnected ? (
                     <button disabled className="flex-1 rounded-md border border-green-500 text-green-700 bg-green-50 dark:bg-green-950/20 px-3 py-2 text-xs font-medium cursor-default flex items-center justify-center gap-2">
                       <span className="h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse" />
                       Connected
                     </button>
-                  ) : plugin.installed ? (
-                    <button disabled className="flex-1 rounded-md border border-blue-400 text-blue-700 bg-blue-50 dark:bg-blue-950/20 px-3 py-2 text-xs font-medium cursor-default">
+                  ) : isInstalled ? (
+                    <button disabled className="flex-1 rounded-md border border-blue-400 text-blue-700 bg-blue-50 dark:bg-blue-950/20 px-3 py-2 text-xs font-medium cursor-default flex items-center justify-center gap-2">
+                      <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M20 6L9 17l-5-5" /></svg>
                       Installed
                     </button>
                   ) : plugin.requiresKey ? (
@@ -686,7 +1088,13 @@ export default function PluginsPage() {
                       Connect with API Key
                     </button>
                   ) : (
-                    <button className="flex-1 rounded-md bg-primary text-primary-foreground px-3 py-2 text-xs font-medium hover:bg-primary/90 transition-colors">
+                    <button
+                      onClick={() => setInstallPlugin(plugin)}
+                      className="flex-1 rounded-md bg-primary text-primary-foreground px-3 py-2 text-xs font-medium hover:bg-primary/90 transition-colors flex items-center justify-center gap-1.5"
+                    >
+                      <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="M12 2v14M5 9l7 7 7-7" /><path d="M5 22h14" />
+                      </svg>
                       Install Free
                     </button>
                   )}
@@ -703,7 +1111,7 @@ export default function PluginsPage() {
                   )}
 
                   {/* Uninstall — Admin+ only */}
-                  {canAdmin && plugin.installed && (
+                  {canAdmin && isInstalled && (
                     <button
                       onClick={() => setUninstallPlugin(plugin)}
                       title="Uninstall"
@@ -750,9 +1158,30 @@ export default function PluginsPage() {
       )}
 
       {/* Modals */}
-      {testPlugin      && <TestModal      plugin={testPlugin}      onClose={() => setTestPlugin(null)}      />}
-      {credPlugin      && <CredentialModal plugin={credPlugin}     onClose={() => setCredPlugin(null)}     />}
-      {uninstallPlugin && <UninstallModal  plugin={uninstallPlugin} onClose={() => setUninstallPlugin(null)} />}
+      {installPlugin && (
+        <InstallModal
+          plugin={installPlugin}
+          onClose={() => setInstallPlugin(null)}
+          onInstalled={() => markInstalled(installPlugin.id)}
+        />
+      )}
+      {testPlugin && (
+        <TestModal plugin={testPlugin} onClose={() => setTestPlugin(null)} />
+      )}
+      {credPlugin && (
+        <CredentialModal
+          plugin={credPlugin}
+          onClose={() => setCredPlugin(null)}
+          onConnect={() => markInstalled(credPlugin.id)}
+        />
+      )}
+      {uninstallPlugin && (
+        <UninstallModal
+          plugin={uninstallPlugin}
+          onClose={() => setUninstallPlugin(null)}
+          onConfirm={() => markUninstalled(uninstallPlugin.id)}
+        />
+      )}
     </div>
   );
 }
