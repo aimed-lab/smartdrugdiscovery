@@ -285,36 +285,6 @@ const plugins: Plugin[] = [
   },
 ];
 
-// ── Integration guide (Developer+ only) ───────────────────────────────────────
-
-const INTEGRATION_STEPS = [
-  {
-    step: 1, title: "Find the MCP server",
-    detail: "Search mcp.run, smithery.ai, or GitHub for drug-discovery MCP servers. Prefer servers with published JSON schemas and FAIR metadata. For ChEMBL, the server was integrated by the UAB SysPAI team as a Claude Code extension.",
-    code: "# Search example\nmcp registry search chembl\nmcp registry search pubmed",
-  },
-  {
-    step: 2, title: "Add to Claude Code session",
-    detail: "Register the server in your Claude Code MCP configuration. The server exposes named tools that Claude calls automatically. No API keys needed for public databases like ChEMBL.",
-    code: '// claude_desktop_config.json — mcpServers block\n{\n  "mcpServers": {\n    "chembl": {\n      "command": "npx",\n      "args": ["-y", "@chembl/mcp-server"],\n      "env": {}\n    }\n  }\n}',
-  },
-  {
-    step: 3, title: "Verify tools are available",
-    detail: "Once connected, all 6 ChEMBL tools appear in the Claude Code session. Verify with the Test button on the plugin card.",
-    code: "# Verified active tools for ChEMBL MCP:\n• compound_search   — by name, ChEMBL ID, or SMILES\n• drug_search       — by therapeutic indication\n• target_search     — by gene symbol or protein name\n• get_bioactivity   — IC50, Ki, EC50 assay data\n• get_mechanism     — mechanism of action (MoA)\n• get_admet         — drug-likeness & ADMET properties",
-  },
-  {
-    step: 4, title: "Test via the Test button",
-    detail: 'Click the flask icon (🧪) on any installed plugin card to open the test chat. It runs a pre-built example query and shows the live result — proving the connection works before you use it in Design with AI.',
-    code: '// Example output from Test modal:\ncompound_search("vemurafenib", max_phase=4)\n→ CHEMBL1229517 · Vemurafenib · MW 489.93 · Approved 2011\ntarget_search(gene="BRAF")\n→ CHEMBL5145 · UniProt P15056 · 100+ PDB structures',
-  },
-  {
-    step: 5, title: "Replicate for any other server",
-    detail: "Follow the same pattern for any data source. PubMed MCP: add to config, verify search_articles / get_full_text. ClinicalTrials: search_trials / get_trial_details. Each server follows the Model Context Protocol standard.",
-    code: "# Template:\n1. npm install -g @<org>/<mcp-server>  # or npx -y\n2. Add mcpServers block to config\n3. Restart Claude Code\n4. Click Test on the plugin card to verify\n5. Use from Design with AI → MCP Intelligence tab",
-  },
-];
-
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function FairBadge({ letter, met }: { letter: string; met: boolean }) {
@@ -566,7 +536,6 @@ export default function PluginsPage() {
 
   const [typeFilter, setTypeFilter] = useState<PluginType | "all">("all");
   const [search, setSearch]         = useState("");
-  const [openStep, setOpenStep]     = useState<number | null>(null);
   const [testPlugin, setTestPlugin] = useState<Plugin | null>(null);
   const [credPlugin, setCredPlugin]       = useState<Plugin | null>(null);
   const [uninstallPlugin, setUninstallPlugin] = useState<Plugin | null>(null);
@@ -759,37 +728,23 @@ export default function PluginsPage() {
         <div className="text-center py-12 text-muted-foreground">No plugins found matching your criteria.</div>
       )}
 
-      {/* Integration Guide — Developer+ only */}
+      {/* Integration Guide reference — full guide lives in Support Center */}
       {isDev && (
-        <div className="mt-12 border rounded-xl overflow-hidden">
-          <div className="bg-muted/50 px-6 py-4 border-b flex items-center gap-3">
-            <div>
-              <h2 className="text-lg font-semibold">MCP Integration Guide</h2>
-              <p className="text-sm text-muted-foreground mt-0.5">Step-by-step template — Developer &amp; above only</p>
+        <div className="mt-10 rounded-xl border border-dashed bg-muted/30 px-6 py-5 flex items-start gap-4">
+          <span className="text-3xl shrink-0">🔌</span>
+          <div className="flex-1 min-w-0 space-y-1">
+            <p className="font-semibold text-sm">MCP Integration Guide</p>
+            <p className="text-xs text-muted-foreground leading-relaxed">
+              The step-by-step guide for finding, installing, configuring, and testing MCP servers has moved to the Support Center — alongside documentation, training videos, and external portals.
+            </p>
+            <div className="flex gap-3 pt-1">
+              <a href="/support" className="inline-flex items-center gap-1.5 rounded-md bg-primary text-primary-foreground px-3 py-1.5 text-xs font-medium hover:bg-primary/90 transition-colors">
+                Open Support Center →
+              </a>
+              <a href="/support#mcp-guide" className="inline-flex items-center gap-1.5 rounded-md border border-input bg-background px-3 py-1.5 text-xs hover:bg-accent transition-colors">
+                Jump to MCP Guide
+              </a>
             </div>
-            <span className={cn("ml-auto rounded-full px-2.5 py-0.5 text-xs font-medium", ROLE_META["Developer"].color)}>Developer+</span>
-          </div>
-          <div className="divide-y">
-            {INTEGRATION_STEPS.map((s) => (
-              <div key={s.step}>
-                <button
-                  onClick={() => setOpenStep(openStep === s.step ? null : s.step)}
-                  className="w-full flex items-center gap-4 px-6 py-4 text-left hover:bg-muted/30 transition-colors"
-                >
-                  <span className="h-7 w-7 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-sm font-bold shrink-0">{s.step}</span>
-                  <span className="font-medium flex-1">{s.title}</span>
-                  <svg className={cn("h-4 w-4 text-muted-foreground transition-transform shrink-0", openStep === s.step && "rotate-180")} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M6 9l6 6 6-6" />
-                  </svg>
-                </button>
-                {openStep === s.step && (
-                  <div className="px-6 pb-5 space-y-3 bg-muted/20">
-                    <p className="text-sm text-muted-foreground leading-relaxed">{s.detail}</p>
-                    <pre className="rounded-lg bg-card border p-4 text-xs font-mono whitespace-pre-wrap overflow-x-auto text-foreground/80">{s.code}</pre>
-                  </div>
-                )}
-              </div>
-            ))}
           </div>
         </div>
       )}
