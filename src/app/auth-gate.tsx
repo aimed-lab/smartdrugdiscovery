@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { usePathname } from "next/navigation";
 import { AuthProvider, useAuth } from "@/lib/auth-context";
 import LoginPage from "./login/page";
 import { cn } from "@/lib/utils";
@@ -154,13 +155,34 @@ function Sidebar({
   mobileOpen: boolean;
   onClose: () => void;
 }) {
-  const [expanded, setExpanded] = useState<Record<string, boolean>>({
-    "Projects": true,
-    "Biology": false,
-    "Pharmacology": false,
-    "Clinical": false,
-    "Regulation": false,
+  const pathname = usePathname();
+
+  // Load persisted expanded state from localStorage (falls back to defaults)
+  const [expanded, setExpanded] = useState<Record<string, boolean>>(() => {
+    const defaults: Record<string, boolean> = {
+      "Projects": true, "Biology": false, "Pharmacology": false,
+      "Clinical": false, "Regulation": false,
+    };
+    if (typeof window === "undefined") return defaults;
+    try {
+      const stored = localStorage.getItem("sdd-nav-expanded");
+      return stored ? { ...defaults, ...JSON.parse(stored) } : defaults;
+    } catch { return defaults; }
   });
+
+  // Persist expanded state whenever it changes
+  useEffect(() => {
+    try { localStorage.setItem("sdd-nav-expanded", JSON.stringify(expanded)); } catch { /* noop */ }
+  }, [expanded]);
+
+  // Auto-expand the group that contains the current page whenever the route changes
+  useEffect(() => {
+    navGroups.forEach((group) => {
+      const hasActive = group.items.some((item) => pathname === item.href || pathname.startsWith(item.href + "/"));
+      if (hasActive) setExpanded((prev) => prev[group.label] ? prev : { ...prev, [group.label]: true });
+    });
+  }, [pathname]);
+
   const [darkMode, setDarkMode] = useState(false);
   const [fontSize, setFontSize] = useState<0 | 1 | 2>(0);
   const [moduleAccess, setModuleAccess] = useState<ModuleAccessConfig>({});
@@ -390,9 +412,11 @@ function NavItem({ href, label, sub, icon: Icon, onNavigate, locked }: {
   sub?: boolean;
   icon?: React.ComponentType<{ className?: string }>;
   onNavigate?: () => void;
-  /** Partial access — shown with a lock icon, click navigates but page shows restricted notice */
   locked?: boolean;
 }) {
+  const pathname = usePathname();
+  const isActive = pathname === href || pathname.startsWith(href + "/");
+
   return (
     <a
       href={href}
@@ -402,11 +426,13 @@ function NavItem({ href, label, sub, icon: Icon, onNavigate, locked }: {
         sub ? "text-xs ml-1" : "text-sm",
         locked
           ? "text-muted-foreground/50 hover:bg-accent/30 italic"
-          : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+          : isActive
+            ? "bg-accent text-accent-foreground font-medium"
+            : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
       )}
       title={locked ? "Partial access — contact your Admin for full access" : undefined}
     >
-      {Icon && <Icon className="h-3.5 w-3.5 shrink-0" />}
+      {Icon && <Icon className={cn("h-3.5 w-3.5 shrink-0", isActive && !locked && "text-primary")} />}
       <span className="flex-1">{label}</span>
       {locked && <Lock className="h-3 w-3 shrink-0 opacity-40" />}
     </a>
