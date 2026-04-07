@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { usePathname } from "next/navigation";
+import Link from "next/link";
 import { AuthProvider, useAuth } from "@/lib/auth-context";
 import LoginPage from "./login/page";
 import { cn } from "@/lib/utils";
@@ -418,7 +419,7 @@ function NavItem({ href, label, sub, icon: Icon, onNavigate, locked }: {
   const isActive = pathname === href || pathname.startsWith(href + "/");
 
   return (
-    <a
+    <Link
       href={href}
       onClick={onNavigate}
       className={cn(
@@ -435,6 +436,6 @@ function NavItem({ href, label, sub, icon: Icon, onNavigate, locked }: {
       {Icon && <Icon className={cn("h-3.5 w-3.5 shrink-0", isActive && !locked && "text-primary")} />}
       <span className="flex-1">{label}</span>
       {locked && <Lock className="h-3 w-3 shrink-0 opacity-40" />}
-    </a>
+    </Link>
   );
 }
