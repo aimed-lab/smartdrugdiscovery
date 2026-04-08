@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
+import { importInvitationFromParams } from "@/lib/invitations";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
 export default function LoginPage() {
@@ -11,12 +12,18 @@ export default function LoginPage() {
   const [inviteCode, setInviteCode] = useState("");
   const [error, setError] = useState("");
 
-  // Pre-fill invite code from URL ?invite=TOKEN
+  // Pre-fill invite code from URL ?invite=TOKEN and import invitation data
   let searchParams: ReturnType<typeof useSearchParams> | null = null;
   try { searchParams = useSearchParams(); } catch { /* noop — rendered outside Suspense */ }
   useEffect(() => {
-    const token = searchParams?.get("invite");
-    if (token) setInviteCode(token);
+    if (!searchParams) return;
+    const token = searchParams.get("invite");
+    if (token) {
+      setInviteCode(token);
+      // Import the invitation payload from URL params into this browser's localStorage
+      // so validateToken() can find it (invitations are per-browser in localStorage)
+      importInvitationFromParams(searchParams);
+    }
   }, [searchParams]);
 
   const handleSubmit = (e: React.FormEvent) => {

@@ -250,10 +250,70 @@ export function getRemainingQuota(email: string, role: AppRole): number {
   return Math.max(0, max - used);
 }
 
-/** Build an invite link for a token. */
+/**
+ * Build an invite link for a token. The link encodes the full invitation
+ * payload so the recipient's browser can reconstruct the invitation record
+ * (since invitations are stored in localStorage, which is per-browser).
+ */
 export function buildInviteLink(token: string): string {
-  if (typeof window !== "undefined") {
-    return `${window.location.origin}/login?invite=${token}`;
-  }
-  return `/login?invite=${token}`;
+  const all = loadInvitations();
+  const inv = all.find((i) => i.token === token);
+  const base = typeof window !== "undefined" ? window.location.origin : "";
+
+  if (!inv) return `${base}/login?invite=${token}`;
+
+  // Encode key fields into the URL so the recipient can reconstruct the invitation
+  const params = new URLSearchParams({
+    invite: token,
+    r: inv.assignedRole,
+    aa: inv.autoApprove ? "1" : "0",
+    by: inv.createdBy,
+    exp: inv.expiresAt,
+    id: inv.id,
+  });
+  if (inv.recipientHint) params.set("rh", inv.recipientHint);
+
+  return `${base}/login?${params.toString()}`;
+}
+
+/**
+ * Import an invitation from URL parameters into the local browser's storage.
+ * This bridges the gap between the inviter's browser (where the invitation was
+ * created) and the recipient's browser (which has no invitations in localStorage).
+ * Called by the login page on load when URL params contain invitation data.
+ */
+export function importInvitationFromParams(params: URLSearchParams): void {
+  const token = params.get("invite")?.trim().toUpperCase();
+  const role  = params.get("r") as AppRole | null;
+  const exp   = params.get("exp");
+  const id    = params.get("id");
+  const by    = params.get("by");
+
+  // Need at minimum: token + role + expiry + id + createdBy
+  if (!token || !role || !exp || !id || !by) return;
+
+  // Don't import SPARC2026 — it's handled as a synthetic invitation
+  if (token === "SPARC2026") return;
+
+  const all = loadInvitations();
+
+  // Don't duplicate if already imported
+  if (all.some((i) => i.id === id)) return;
+
+  const invitation: Invitation = {
+    id,
+    token,
+    createdBy: by,
+    assignedRole: role,
+    recipientHint: params.get("rh") ?? undefined,
+    autoApprove: params.get("aa") === "1",
+    status: "pending",
+    acceptedBy: null,
+    createdAt: new Date().toISOString(),
+    expiresAt: exp,
+    acceptedAt: null,
+  };
+
+  all.push(invitation);
+  saveInvitations(all);
 }
