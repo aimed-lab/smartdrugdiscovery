@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
-// Rate limit: free tier gets 5 questions per session (enforced client-side; server trusts header)
-// Paid/Owner/Admin: unlimited (role sent in request body)
+// ── System prompt ────────────────────────────────────────────────────────────
 
 const SYSTEM_PROMPT = `You are the SmartDrugDiscovery platform assistant — an expert in both the platform itself and AI-assisted drug discovery (AIDD 2.0).
 
@@ -13,10 +12,11 @@ You help users:
 5. Log feedback, bugs, and ideas (direct the user to the Feedback tab)
 
 Key platform facts:
-- Version: 1.123 (check About tab in Settings for latest)
+- Version: 1.132 (check About tab in Settings for latest)
 - Roles: Owner > Admin > TechSupport > Developer > User. Owner role is locked — transfer requires 24-hr cooling-off.
-- Persistence: localStorage (client-side). Supabase/Prisma DB integration is planned.
-- AI Chat uses Anthropic Claude (ANTHROPIC_API_KEY set as Vercel env var, or entered in Settings → API Keys).
+- Invitation system: two-gate model (invitation token + admin approval). SPARC2026 is the bootstrap token.
+- Persistence: localStorage (client-side). Database integration is planned.
+- AI Chat is powered by your own API key set in Settings → API Keys. Multiple providers supported: Anthropic, OpenAI, Groq.
 - MCP servers: ChEMBL (6 tools), PubMed, Open Targets, Talent KG, HuggingFace Hub, Kaggle.
 - Foundation Models: Claude Opus 4, Claude Sonnet 4.5, GPT-4o, Gemini 2.5 Pro, Llama 3.3 70B (Groq), Mistral Large 2, Drug-GPT, BioGPT.
 - Projects have A.G.E. scores (Activity · Goal · Execution).
@@ -24,73 +24,150 @@ Key platform facts:
 - Security & Compliance page: /security (Admin/Developer only).
 - Support Dashboard: /support (TechSupport+ only).
 - Access Control (RBAC module visibility): Settings → Access Control tab (Admin/Owner only).
+- Members panel: Settings → Members tab (Admin/Owner only). Approval queue, user management, invitations.
 
 Be concise, helpful, and accurate. When unsure, say so. For sensitive actions (deleting data, changing roles, financial info) always confirm before proceeding.`;
 
-/** Friendly diagnostic messages for HTTP errors from Anthropic. */
-function anthropicErrorMessage(status: number, body: string): string {
+// ── Provider configurations ──────────────────────────────────────────────────
+
+type Provider = "anthropic" | "openai" | "groq";
+
+interface ProviderConfig {
+  endpoint: string;
+  buildHeaders: (apiKey: string) => Record<string, string>;
+  buildBody: (model: string, messages: { role: string; content: string }[], system: string) => object;
+  extractAnswer: (data: unknown) => string;
+  models: string[];
+}
+
+const PROVIDERS: Record<Provider, ProviderConfig> = {
+  anthropic: {
+    endpoint: "https://api.anthropic.com/v1/messages",
+    buildHeaders: (key) => ({
+      "x-api-key": key,
+      "anthropic-version": "2023-06-01",
+      "content-type": "application/json",
+    }),
+    buildBody: (model, messages, system) => ({
+      model,
+      max_tokens: 800,
+      system,
+      messages,
+    }),
+    extractAnswer: (data) => {
+      const d = data as { content: { type: string; text: string }[] };
+      return d.content.find((c) => c.type === "text")?.text ?? "No response.";
+    },
+    models: ["claude-sonnet-4-5", "claude-3-5-sonnet-20241022", "claude-3-haiku-20240307"],
+  },
+  openai: {
+    endpoint: "https://api.openai.com/v1/chat/completions",
+    buildHeaders: (key) => ({
+      "Authorization": `Bearer ${key}`,
+      "content-type": "application/json",
+    }),
+    buildBody: (model, messages, system) => ({
+      model,
+      max_tokens: 800,
+      messages: [{ role: "system", content: system }, ...messages],
+    }),
+    extractAnswer: (data) => {
+      const d = data as { choices: { message: { content: string } }[] };
+      return d.choices?.[0]?.message?.content ?? "No response.";
+    },
+    models: ["gpt-4o", "gpt-4o-mini"],
+  },
+  groq: {
+    endpoint: "https://api.groq.com/openai/v1/chat/completions",
+    buildHeaders: (key) => ({
+      "Authorization": `Bearer ${key}`,
+      "content-type": "application/json",
+    }),
+    buildBody: (model, messages, system) => ({
+      model,
+      max_tokens: 800,
+      messages: [{ role: "system", content: system }, ...messages],
+    }),
+    extractAnswer: (data) => {
+      const d = data as { choices: { message: { content: string } }[] };
+      return d.choices?.[0]?.message?.content ?? "No response.";
+    },
+    models: ["llama-3.3-70b-versatile", "llama-3.1-8b-instant"],
+  },
+};
+
+/** Friendly diagnostic messages for HTTP errors. */
+function providerErrorMessage(provider: Provider, status: number, body: string): string {
+  const providerName = provider === "anthropic" ? "Anthropic" : provider === "openai" ? "OpenAI" : "Groq";
   if (status === 401) {
-    return "❌ **Invalid API key** — your Anthropic API key was rejected. Please check Settings → API Keys and make sure you've entered a valid `sk-ant-...` key, then save it.";
+    return `❌ **Invalid API key** — your ${providerName} API key was rejected. Go to **Settings → API Keys**, check the key, and save it.`;
   }
   if (status === 403) {
-    return "❌ **Access denied** — your API key doesn't have permission to use this model. Check your Anthropic account plan.";
+    return `❌ **Access denied** — your ${providerName} key doesn't have permission to use this model. Check your account plan.`;
   }
   if (status === 404) {
-    return "❌ **Model not found** — the requested model isn't available on your account. Try using a different Foundation Model in Settings.";
+    return `❌ **Model not found** — the requested model isn't available on your ${providerName} account. Try a different model.`;
   }
   if (status === 429) {
     return "⏳ **Rate limit reached** — too many requests. Please wait a moment and try again.";
   }
   if (status === 529 || status === 503) {
-    return "⏳ **Anthropic service temporarily unavailable** — please try again in a few seconds.";
+    return `⏳ **${providerName} service temporarily unavailable** — please try again in a few seconds.`;
   }
-  // Try to parse a useful message from the body
   try {
     const parsed = JSON.parse(body) as { error?: { message?: string } };
-    if (parsed?.error?.message) {
-      return `⚠️ API error: ${parsed.error.message}`;
-    }
+    if (parsed?.error?.message) return `⚠️ ${providerName} error: ${parsed.error.message}`;
   } catch { /* ignore */ }
-  return `⚠️ Anthropic API returned HTTP ${status}. Please check your API key in Settings → API Keys.`;
+  return `⚠️ ${providerName} API returned HTTP ${status}. Please check your API key in Settings → API Keys.`;
 }
+
+// ── POST handler ─────────────────────────────────────────────────────────────
 
 export async function POST(req: NextRequest) {
   try {
-    const { question, pageContext, role, history = [], apiKey: clientKey } = await req.json() as {
+    const {
+      question,
+      pageContext,
+      history = [],
+      apiKey: clientKey,
+      provider: requestedProvider = "anthropic",
+    } = await req.json() as {
       question: string;
       pageContext?: string;
       role?: string;
       history?: { role: "user" | "assistant"; content: string }[];
-      /** Optional: client-provided API key (from localStorage → Settings → API Keys).
-       *  Used as fallback when ANTHROPIC_API_KEY env var is not set. */
       apiKey?: string;
+      provider?: Provider;
     };
 
     if (!question?.trim()) {
       return NextResponse.json({ error: "question is required" }, { status: 400 });
     }
 
-    // Prefer server env var; fall back to key passed from the client
-    const apiKey = process.env.ANTHROPIC_API_KEY || clientKey?.trim() || "";
+    // User must supply their own key — no server-side fallback
+    const apiKey = clientKey?.trim() || "";
 
     if (!apiKey) {
       return NextResponse.json(
         {
-          answer: "⚙️ **AI assistant not configured** — no Anthropic API key found.\n\n" +
-            "To fix this:\n" +
+          answer: "⚙️ **Platform assistant requires an API key**\n\n" +
+            "To activate the assistant:\n" +
             "1. Go to **Settings → API Keys**\n" +
-            "2. Enter your `sk-ant-...` key in the Anthropic field\n" +
+            "2. Enter a key for at least one provider (Anthropic, OpenAI, or Groq)\n" +
             "3. Click **Save API Keys**\n\n" +
-            "Your key is stored locally in your browser and sent securely over HTTPS. " +
-            "For production, set `ANTHROPIC_API_KEY` as a Vercel environment variable instead.",
+            "The assistant will use whichever provider you configure. " +
+            "Your key is stored locally in your browser and sent securely over HTTPS.",
         },
         { status: 200 }
       );
     }
 
+    const provider = PROVIDERS[requestedProvider] ? requestedProvider : "anthropic";
+    const config = PROVIDERS[provider];
+
     // Build messages: history + current question
     const messages = [
-      ...history.slice(-6), // keep last 3 turns for context
+      ...history.slice(-6),
       {
         role: "user" as const,
         content: pageContext
@@ -99,55 +176,38 @@ export async function POST(req: NextRequest) {
       },
     ];
 
-    // Try the requested model, with automatic fallback chain
-    const modelCandidates = [
-      "claude-sonnet-4-5",
-      "claude-3-5-sonnet-20241022",
-      "claude-3-haiku-20240307",
-    ];
-
+    // Try models in the provider's fallback chain
     let lastStatus = 0;
     let lastBody   = "";
 
-    for (const model of modelCandidates) {
-      const response = await fetch("https://api.anthropic.com/v1/messages", {
+    for (const model of config.models) {
+      const response = await fetch(config.endpoint, {
         method: "POST",
-        headers: {
-          "x-api-key": apiKey,
-          "anthropic-version": "2023-06-01",
-          "content-type": "application/json",
-        },
-        body: JSON.stringify({
-          model,
-          max_tokens: 800,
-          system: SYSTEM_PROMPT,
-          messages,
-        }),
+        headers: config.buildHeaders(apiKey),
+        body: JSON.stringify(config.buildBody(model, messages, SYSTEM_PROMPT)),
       });
 
       lastStatus = response.status;
 
       if (response.ok) {
-        const data = await response.json() as {
-          content: { type: string; text: string }[];
-        };
-        const answer = data.content.find((c) => c.type === "text")?.text ?? "No response.";
-        return NextResponse.json({ answer, model });
+        const data = await response.json();
+        const answer = config.extractAnswer(data);
+        return NextResponse.json({ answer, model, provider });
       }
 
       lastBody = await response.text();
 
-      // 401 / 403 = auth error — no point trying other models
+      // Auth errors — no point trying other models
       if (response.status === 401 || response.status === 403) break;
-      // 404 = model not available — try next in chain
+      // 404 = model not available on this plan — try next
       if (response.status === 404) continue;
       // Other errors — break and report
       break;
     }
 
-    console.error(`Anthropic API error (${lastStatus}):`, lastBody);
+    console.error(`${provider} API error (${lastStatus}):`, lastBody);
     return NextResponse.json(
-      { answer: anthropicErrorMessage(lastStatus, lastBody) },
+      { answer: providerErrorMessage(provider, lastStatus, lastBody) },
       { status: 200 }
     );
   } catch (err) {
@@ -162,27 +222,27 @@ export async function POST(req: NextRequest) {
 /** GET /api/assistant — connection health check */
 export async function GET(req: NextRequest) {
   const clientKey = req.nextUrl.searchParams.get("key") ?? "";
-  const apiKey = process.env.ANTHROPIC_API_KEY || clientKey.trim();
+  const provider  = (req.nextUrl.searchParams.get("provider") ?? "anthropic") as Provider;
 
-  if (!apiKey) {
+  if (!clientKey.trim()) {
     return NextResponse.json({ ok: false, reason: "no_key" });
   }
 
-  // Cheapest possible call to verify the key
-  const res = await fetch("https://api.anthropic.com/v1/messages", {
+  const config = PROVIDERS[provider];
+  if (!config) {
+    return NextResponse.json({ ok: false, reason: "unknown_provider" });
+  }
+
+  // Use the cheapest model for a health check
+  const cheapModel = config.models[config.models.length - 1];
+  const messages = [{ role: "user" as const, content: "hi" }];
+
+  const res = await fetch(config.endpoint, {
     method: "POST",
-    headers: {
-      "x-api-key": apiKey,
-      "anthropic-version": "2023-06-01",
-      "content-type": "application/json",
-    },
-    body: JSON.stringify({
-      model: "claude-3-haiku-20240307",
-      max_tokens: 5,
-      messages: [{ role: "user", content: "hi" }],
-    }),
+    headers: config.buildHeaders(clientKey.trim()),
+    body: JSON.stringify(config.buildBody(cheapModel, messages, "Reply with one word.")),
   });
 
-  if (res.ok) return NextResponse.json({ ok: true });
-  return NextResponse.json({ ok: false, status: res.status });
+  if (res.ok) return NextResponse.json({ ok: true, provider });
+  return NextResponse.json({ ok: false, status: res.status, provider });
 }

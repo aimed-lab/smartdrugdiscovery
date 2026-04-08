@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import {
   MessageSquarePlus, X, Bug, Lightbulb, Sparkles, Send,
   Paperclip, Mic, MicOff, ImagePlus, Trash2, Bot, BookOpen,
+  Settings, KeyRound,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -38,7 +39,7 @@ const priorityConfig: Record<FeedbackPriority, { label: string; active: string }
   p3: { label: "P3 Low",      active: "border-green-300 bg-green-50 text-green-700 dark:bg-green-950 dark:text-green-300" },
 };
 
-const FREE_QUESTIONS_LIMIT = 5;
+// No free-tier limit — users bring their own API key
 
 const QUICK_LINKS = [
   { label: "Getting Started",      href: "https://github.com/aimed-lab/smartdrugdiscovery/blob/main/docs/getting-started.md" },
@@ -88,8 +89,34 @@ export function FeedbackWidget({ user }: { user: { name: string; email: string; 
   const [chatHistory, setHistory] = useState<ChatMessage[]>([]);
   const [question, setQuestion]   = useState("");
   const [asking, setAsking]       = useState(false);
-  const [questionsUsed, setUsed]  = useState(0);
   const chatEndRef = useRef<HTMLDivElement>(null);
+
+  // Detect which API keys the user has configured
+  type AiProvider = "anthropic" | "openai" | "groq";
+  const PROVIDER_LABELS: Record<AiProvider, string> = { anthropic: "Anthropic", openai: "OpenAI", groq: "Groq" };
+  const PROVIDER_KEY_PREFIXES: Record<AiProvider, string> = { anthropic: "sk-ant-", openai: "sk-", groq: "gsk_" };
+
+  const [activeProvider, setActiveProvider] = useState<AiProvider | null>(null);
+  const [availableProviders, setAvailableProviders] = useState<AiProvider[]>([]);
+
+  // Refresh provider detection when panel opens or tab changes
+  useEffect(() => {
+    if (!open) return;
+    try {
+      const stored = localStorage.getItem("sdd-api-keys");
+      if (!stored) { setAvailableProviders([]); setActiveProvider(null); return; }
+      const keys = JSON.parse(stored) as Record<string, string>;
+      const available: AiProvider[] = [];
+      if (keys.anthropic?.trim()) available.push("anthropic");
+      if (keys.openai?.trim())    available.push("openai");
+      if (keys.groq?.trim())      available.push("groq");
+      setAvailableProviders(available);
+      // Keep current provider if still available, otherwise pick first
+      setActiveProvider((prev) => prev && available.includes(prev) ? prev : available[0] ?? null);
+    } catch { setAvailableProviders([]); setActiveProvider(null); }
+  }, [open, tab]);
+
+  const botEnabled = activeProvider !== null;
 
   // Feedback tab
   const [status, setStatus]     = useState<"idle" | "submitting" | "success" | "error">("idle");
@@ -107,26 +134,22 @@ export function FeedbackWidget({ user }: { user: { name: string; email: string; 
   useEffect(() => { if (open) setUrl(window.location.pathname); }, [open]);
   useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [chatHistory]);
 
-  const isPaidUser = user?.role === "Owner" || user?.role === "Admin" || user?.role === "Developer";
-  const limitReached = !isPaidUser && questionsUsed >= FREE_QUESTIONS_LIMIT;
-
   // ── Ask ────────────────────────────────────────────────────────────────────
 
   const sendQuestion = async (q: string) => {
     const trimmed = q.trim();
-    if (!trimmed || asking || limitReached) return;
+    if (!trimmed || asking || !botEnabled) return;
     const userMsg: ChatMessage = { role: "user", content: trimmed };
     setHistory((h) => [...h, userMsg]);
     setQuestion("");
     setAsking(true);
-    setUsed((n) => n + 1);
 
     try {
-      // Read saved API key from localStorage (set in Settings → API Keys)
-      let clientApiKey: string | undefined;
+      // Read API key for the active provider
+      let clientApiKey = "";
       try {
         const stored = localStorage.getItem("sdd-api-keys");
-        if (stored) clientApiKey = (JSON.parse(stored) as Record<string, string>).anthropic || undefined;
+        if (stored) clientApiKey = (JSON.parse(stored) as Record<string, string>)[activeProvider!] ?? "";
       } catch { /* ignore */ }
 
       const res = await fetch("/api/assistant", {
@@ -137,7 +160,8 @@ export function FeedbackWidget({ user }: { user: { name: string; email: string; 
           pageContext: currentUrl,
           role: user?.role ?? "User",
           history: [...chatHistory, userMsg].slice(-6),
-          ...(clientApiKey ? { apiKey: clientApiKey } : {}),
+          apiKey: clientApiKey,
+          provider: activeProvider,
         }),
       });
       const data = await res.json() as { answer: string };
@@ -281,7 +305,28 @@ export function FeedbackWidget({ user }: { user: { name: string; email: string; 
             <div className="flex flex-col h-full">
               {/* Chat history */}
               <div className="flex-1 p-4 space-y-3 min-h-[200px]">
-                {chatHistory.length === 0 && (
+                {!botEnabled && chatHistory.length === 0 && (
+                  <div className="py-6 px-2 text-center space-y-4">
+                    <div className="mx-auto h-12 w-12 rounded-full bg-muted flex items-center justify-center">
+                      <KeyRound className="h-6 w-6 text-muted-foreground" />
+                    </div>
+                    <div className="space-y-1">
+                      <p className="text-sm font-medium">API Key Required</p>
+                      <p className="text-xs text-muted-foreground leading-relaxed">
+                        Set up an API key in Settings to activate the assistant.
+                        Anthropic, OpenAI, and Groq are supported.
+                      </p>
+                    </div>
+                    <a
+                      href="/settings"
+                      className="inline-flex items-center gap-1.5 rounded-md px-4 py-2 text-xs font-medium bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
+                    >
+                      <Settings className="h-3.5 w-3.5" />
+                      Open Settings → API Keys
+                    </a>
+                  </div>
+                )}
+                {botEnabled && chatHistory.length === 0 && (
                   <div className="space-y-3">
                     <p className="text-xs text-muted-foreground text-center pt-2">
                       Ask anything about the platform, roles, MCP tools, or drug discovery.
@@ -297,10 +342,28 @@ export function FeedbackWidget({ user }: { user: { name: string; email: string; 
                         </button>
                       ))}
                     </div>
-                    {!isPaidUser && (
+                    {availableProviders.length > 1 && (
+                      <div className="flex items-center justify-center gap-1.5">
+                        <span className="text-[10px] text-muted-foreground">Using:</span>
+                        {availableProviders.map((p) => (
+                          <button
+                            key={p}
+                            onClick={() => setActiveProvider(p)}
+                            className={cn(
+                              "rounded-full px-2 py-0.5 text-[10px] font-medium border transition-colors",
+                              activeProvider === p
+                                ? "border-primary bg-primary/10 text-primary"
+                                : "border-border text-muted-foreground hover:bg-accent"
+                            )}
+                          >
+                            {PROVIDER_LABELS[p]}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                    {availableProviders.length === 1 && (
                       <p className="text-[10px] text-muted-foreground text-center">
-                        Free tier: {FREE_QUESTIONS_LIMIT - questionsUsed} question{FREE_QUESTIONS_LIMIT - questionsUsed !== 1 ? "s" : ""} remaining this session.{" "}
-                        <span className="text-primary">Upgrade to Owner/Admin for unlimited.</span>
+                        Powered by {PROVIDER_LABELS[availableProviders[0]]}
                       </p>
                     )}
                   </div>
@@ -339,35 +402,53 @@ export function FeedbackWidget({ user }: { user: { name: string; email: string; 
 
               {/* Input row */}
               <div className="p-3 border-t shrink-0">
-                {limitReached ? (
-                  <div className="rounded-lg bg-muted/50 p-3 text-center space-y-1">
-                    <p className="text-xs text-muted-foreground">Free question limit reached for this session.</p>
-                    <p className="text-xs text-primary">Upgrade your role to Admin+ for unlimited questions.</p>
-                  </div>
+                {botEnabled ? (
+                  <>
+                    <div className="flex gap-2 items-end">
+                      <textarea
+                        value={question}
+                        onChange={(e) => setQuestion(e.target.value)}
+                        onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendQuestion(question); } }}
+                        placeholder="Ask about the platform…"
+                        rows={1}
+                        className="flex-1 rounded-lg border border-input bg-background px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-ring"
+                        style={{ minHeight: "2.4rem", maxHeight: "6rem" }}
+                      />
+                      <button
+                        onClick={() => sendQuestion(question)}
+                        disabled={!question.trim() || asking}
+                        className="h-9 w-9 rounded-lg bg-primary text-primary-foreground flex items-center justify-center hover:bg-primary/90 disabled:opacity-40 transition-colors shrink-0"
+                      >
+                        <Send className="h-4 w-4" />
+                      </button>
+                    </div>
+                    {availableProviders.length > 1 && chatHistory.length > 0 && (
+                      <div className="flex items-center gap-1.5 mt-1.5">
+                        <span className="text-[10px] text-muted-foreground">Provider:</span>
+                        {availableProviders.map((p) => (
+                          <button
+                            key={p}
+                            onClick={() => setActiveProvider(p)}
+                            className={cn(
+                              "rounded-full px-2 py-0.5 text-[10px] font-medium border transition-colors",
+                              activeProvider === p
+                                ? "border-primary bg-primary/10 text-primary"
+                                : "border-border text-muted-foreground hover:bg-accent"
+                            )}
+                          >
+                            {PROVIDER_LABELS[p]}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </>
                 ) : (
-                  <div className="flex gap-2 items-end">
-                    <textarea
-                      value={question}
-                      onChange={(e) => setQuestion(e.target.value)}
-                      onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendQuestion(question); } }}
-                      placeholder="Ask about the platform…"
-                      rows={1}
-                      className="flex-1 rounded-lg border border-input bg-background px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-ring"
-                      style={{ minHeight: "2.4rem", maxHeight: "6rem" }}
-                    />
-                    <button
-                      onClick={() => sendQuestion(question)}
-                      disabled={!question.trim() || asking}
-                      className="h-9 w-9 rounded-lg bg-primary text-primary-foreground flex items-center justify-center hover:bg-primary/90 disabled:opacity-40 transition-colors shrink-0"
-                    >
-                      <Send className="h-4 w-4" />
-                    </button>
+                  <div className="rounded-lg bg-muted/50 p-3 text-center space-y-1">
+                    <p className="text-xs text-muted-foreground">No API key configured.</p>
+                    <a href="/settings" className="text-xs text-primary hover:underline">
+                      Add one in Settings → API Keys
+                    </a>
                   </div>
-                )}
-                {!isPaidUser && !limitReached && (
-                  <p className="text-[10px] text-muted-foreground mt-1.5 text-right">
-                    {FREE_QUESTIONS_LIMIT - questionsUsed} / {FREE_QUESTIONS_LIMIT} free questions
-                  </p>
                 )}
               </div>
             </div>
@@ -516,10 +597,10 @@ export function FeedbackWidget({ user }: { user: { name: string; email: string; 
                   Ask the assistant →
                 </button>
               </div>
-              {!isPaidUser && (
+              {!botEnabled && (
                 <div className="rounded-lg border border-primary/20 bg-primary/5 p-3 space-y-1">
-                  <p className="text-xs font-medium text-primary">Agentic features (paid)</p>
-                  <p className="text-xs text-muted-foreground">Admin+ roles unlock unlimited questions, proactive suggestions, file analysis, and automated task execution from the assistant.</p>
+                  <p className="text-xs font-medium text-primary">Assistant requires API key</p>
+                  <p className="text-xs text-muted-foreground">Go to Settings → API Keys and enter a key for Anthropic, OpenAI, or Groq to enable the AI assistant.</p>
                 </div>
               )}
             </div>

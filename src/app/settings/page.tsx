@@ -204,10 +204,10 @@ export default function SettingsPage() {
       id: "anthropic",
       name: "Anthropic API",
       key: "sk-ant-api03-xxxx-xxxx-xxxx-configured",
-      description: "Claude models (Sonnet, Opus) — powers AI Chat and Foundation Models",
-      lastUsed: "Active (server-side env var)",
+      description: "Claude models (Sonnet, Opus) — powers Platform Assistant and Foundation Models",
+      lastUsed: "Configure your own key",
       modelProvider: true,
-      serverSide: true,
+      serverSide: false,
     },
     {
       id: "groq",
@@ -729,7 +729,7 @@ export default function SettingsPage() {
               <CardHeader>
                 <CardTitle>API Keys</CardTitle>
                 <CardDescription>
-                  Manage keys for AI model providers and external data sources. Keys marked <span className="font-semibold text-primary">Foundation Model</span> are selectable in the <a href="/models" className="text-primary underline underline-offset-2">Foundation Models</a> page.
+                  Manage keys for AI model providers and external data sources. Your API key powers the <span className="font-semibold text-primary">Platform Assistant</span> (bottom-right chat bot) and the <a href="/models" className="text-primary underline underline-offset-2">Foundation Models</a> page. Set up at least one provider key (Anthropic, OpenAI, or Groq) to activate the assistant.
                 </CardDescription>
               </CardHeader>
             </Card>
