@@ -6,15 +6,28 @@ This guide walks new users through logging in, orienting themselves in the dashb
 
 ## Logging In
 
-1. Open the SmartDrugDiscovery URL in your browser (provided by your administrator).
-2. On the login screen, enter:
-   - **Email address** — your work or institutional email
-   - **Invite code** — `SPARC2026`
-3. Click **Sign In**.
+### Returning Users
 
-If your email has been pre-seeded by the platform administrator (e.g., you are the Owner), your profile will load automatically with your pre-configured name, title, and role. If your email is new to the system, a default profile is created and you can customise it in Settings.
+1. Open the SmartDrugDiscovery URL in your browser.
+2. Enter your **email address** (the one you registered with).
+3. Leave the **Invitation Code** field empty.
+4. Click **Sign In**.
 
-> The invite code `SPARC2026` is valid for all users in the current release. Contact your administrator if sign-in fails.
+### New Users (First-Time Registration)
+
+New users need an invitation to join the platform:
+
+1. Receive an **invite link** from a team member (e.g., `https://smartdrugdiscovery.org/login?invite=ABCD1234`). Clicking the link opens the login page with the code pre-filled. Alternatively, your inviter may share a code directly.
+2. Enter your **email address**.
+3. Enter the **invitation code** (8-character token, or `SPARC2026` for SPARC staff).
+4. Click **Sign In**.
+
+**What happens next depends on the invitation type:**
+
+- **Auto-approved invitations** (created by Admin/Owner with the auto-approve flag, or the `SPARC2026` bootstrap token): You gain immediate platform access.
+- **Standard invitations**: Your account is created in **pending approval** status. You'll see an "Awaiting Approval" screen until an administrator approves your registration. Click **Check Status** to refresh.
+
+> **SPARC staff:** Use invite code `SPARC2026` to register as a Developer with immediate access. Contact your administrator if you need a different role or if sign-in fails.
 
 ---
 

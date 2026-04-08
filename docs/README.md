@@ -23,7 +23,7 @@ This `docs/` directory is maintained alongside the codebase. Every file here ref
 | Field | Value |
 |---|---|
 | **Platform name** | SmartDrugDiscovery |
-| **Current version** | 1.100 |
+| **Current version** | 1.132 |
 | **License** | Enterprise |
 | **Copyright** | © 2026 UAB Systems Pharmacology AI Research Center |
 | **Deployed on** | Vercel |

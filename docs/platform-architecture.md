@@ -31,6 +31,21 @@ This means:
 - Clearing browser storage logs the user out and resets their profile.
 - No cross-device sync is available in the current version.
 
+#### localStorage Keys
+
+| Key | Purpose |
+|---|---|
+| `sdd-user-db` | All user records (profile, role, account status, invitation metadata) |
+| `sdd-auth-user` | Currently authenticated user session |
+| `sdd-api-keys` | User API keys (Anthropic, Groq, OpenAI, etc.) |
+| `sdd-theme` | Dark/light mode preference |
+| `sdd-office-connections` | Office 365 tool connection states |
+| `sdd-module-access` | Admin-configured module access control matrix |
+| `sdd-plugin-installs` | Set of installed plugin IDs |
+| `sdd-nav-expanded` | Sidebar navigation expanded/collapsed state |
+| `sdd-invitations` | All invitation records (tokens, status, quotas) |
+| `sdd-platform-settings` | Platform capacity limit and global settings |
+
 **Server-side secrets** (GitHub token, Anthropic API key, feedback read key) are stored as Vercel environment variables and never exposed to the client.
 
 ### Future: Supabase / Prisma + PlanetScale
@@ -52,22 +67,25 @@ Until that migration occurs, all user data remains client-local.
 
 | File | Purpose |
 |---|---|
-| `src/app/auth-gate.tsx` | Top-level auth wrapper; renders `LoginPage` or the main layout with `Sidebar`, nav groups, and `RoleAvatar`. Also mounts `FeedbackWidget`. |
+| `src/app/auth-gate.tsx` | Top-level auth wrapper; renders `LoginPage` or the main layout with `Sidebar`, nav groups, and `RoleAvatar`. Wraps the authenticated layout in `AccountStatusGate` to enforce account status checks. Also mounts `FeedbackWidget`. |
 | `src/components/role-avatar.tsx` | Shared avatar component used in sidebar header and Settings profile. Applies `ROLE_AVATAR_BG` or `ROLE_RING`/`ROLE_GLOW` based on avatar type. |
+| `src/components/pending-approval-screen.tsx` | `AccountStatusGate` component and status screens (pending approval, rejected, suspended). Gates platform access based on `user.accountStatus`. |
+| `src/components/members-panel.tsx` | Admin member management panel: approval queue, active members table with role selectors and action menus, inactive users list, invitation management, and platform capacity controls. |
 
 ### Core Libraries
 
 | File | Purpose |
 |---|---|
-| `src/lib/auth-context.tsx` | `AuthProvider` and `useAuth` hook. Defines the `User` interface, localStorage persistence, login/logout, and `updateUser`. Contains `VALID_INVITE_CODES = ["SPARC2026"]` and the seed user record. |
-| `src/lib/roles.ts` | All RBAC types and logic: `AppRole`, `ROLE_ORDER`, `roleRank`, `hasRole`, `can`, `ROLE_PERMISSIONS`, `ROLE_AVATAR_BG`, `ROLE_RING`, `ROLE_GLOW`, `ROLE_META`. Single source of truth for permissions. |
+| `src/lib/auth-context.tsx` | `AuthProvider` and `useAuth` hook. Defines the `User` interface (including `accountStatus`, `invitedBy`, `approvedBy` fields), localStorage persistence, login/logout, `updateUser`, and admin functions (`getAllUsers`, `approveUser`, `rejectUser`, `suspendUser`, `reactivateUser`, `updateUserRole`). Login flow validates invitation tokens for new users and checks account status for returning users. |
+| `src/lib/roles.ts` | All RBAC types and logic: `AppRole`, `ROLE_ORDER`, `roleRank`, `hasRole`, `can`, `ROLE_PERMISSIONS`, `ROLE_AVATAR_BG`, `ROLE_RING`, `ROLE_GLOW`, `ROLE_META`. Single source of truth for permissions. Includes invitation and member management permissions. |
+| `src/lib/invitations.ts` | Invitation engine: token generation, creation, validation, redemption, revocation, quota enforcement, and platform capacity settings. Handles the SPARC2026 legacy token as a synthetic invitation. |
 | `src/lib/platform-config.ts` | `PLATFORM_CONFIG` constant: platform name, version number, build date, license tier, copyright string, and tech stack array. Update version here — it propagates to sidebar footer and Settings → About. |
 
 ### Page Routes
 
 | File | Route | Purpose |
 |---|---|---|
-| `src/app/settings/page.tsx` | `/settings` | Four-tab settings page: Profile, API Keys, About, Privacy |
+| `src/app/settings/page.tsx` | `/settings` | Multi-tab settings page: Profile, API Keys, Preferences, Data, Privacy & Legal, About, Members (Admin+), Access Control (Admin+) |
 | `src/app/models/page.tsx` | `/models` | Foundation Models hub — connect API keys, browse available models |
 | `src/app/plugins/page.tsx` | `/plugins` | Tool Plugins marketplace — browse, install, configure, test MCP plugins |
 | `src/app/services/page.tsx` | `/services` | Add-on Services and Office Tools catalogue |
