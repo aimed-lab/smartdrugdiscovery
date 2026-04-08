@@ -80,7 +80,45 @@ export function MembersPanel() {
   const [refreshKey, setRefreshKey] = useState(0);
 
   const refresh = useCallback(() => {
-    setAllUsers(getAllUsers());
+    // Start with localStorage users
+    const localUsers = getAllUsers();
+    setAllUsers(localUsers);
+
+    // Also fetch from server-side registry and merge
+    fetch("/api/users")
+      .then((res) => res.json())
+      .then((data: { users?: { email: string; name: string; role: string; accountStatus: string; invitedBy?: string; invitedAt?: string; approvedBy?: string; approvedAt?: string }[] }) => {
+        if (!data.users?.length) return;
+        const merged = { ...localUsers };
+        for (const su of data.users) {
+          const email = su.email.toLowerCase();
+          if (!merged[email]) {
+            // Server-only user — not in admin's localStorage
+            merged[email] = {
+              name: su.name || su.email.split("@")[0],
+              email,
+              avatar: (su.name || su.email).split(" ").map((w: string) => w[0]).join("").slice(0, 2).toUpperCase(),
+              title: "",
+              role: (su.role || "User") as import("@/lib/roles").AppRole,
+              institution: "",
+              accountStatus: (su.accountStatus || "active") as import("@/lib/auth-context").AccountStatus,
+              invitedBy: su.invitedBy,
+              invitedAt: su.invitedAt,
+              approvedBy: su.approvedBy,
+              approvedAt: su.approvedAt,
+            };
+          } else {
+            // If server has a more recent status update, prefer it
+            // (e.g., user was approved on another admin's browser)
+            if (su.accountStatus && su.accountStatus !== merged[email].accountStatus) {
+              merged[email] = { ...merged[email], accountStatus: su.accountStatus as import("@/lib/auth-context").AccountStatus };
+            }
+          }
+        }
+        setAllUsers(merged);
+      })
+      .catch(() => { /* silently fail — localStorage data still shown */ });
+
     if (user && hasRole(user.role, "Admin")) {
       setInvitations(getAllInvitations());
     } else if (user) {

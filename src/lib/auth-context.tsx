@@ -158,6 +158,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setLoading(false);
   }, []);
 
+  // ── Server-side user registry sync (fire-and-forget) ─────────────────────
+  const syncUserToServer = (u: User, method: "POST" | "PUT" = "POST") => {
+    fetch("/api/users", {
+      method,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        email: u.email,
+        name: u.name,
+        role: u.role,
+        accountStatus: u.accountStatus ?? "active",
+        invitedBy: u.invitedBy,
+        invitedAt: u.invitedAt,
+        approvedBy: u.approvedBy,
+        approvedAt: u.approvedAt,
+        registeredAt: new Date().toISOString(),
+      }),
+    }).catch(() => { /* silently fail if API not configured */ });
+  };
+
   const login = (email: string, inviteCode: string): string | null => {
     const trimmedEmail = email.trim().toLowerCase();
     const trimmedCode  = inviteCode.trim();
@@ -205,6 +224,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       ...(redeemed.autoApprove ? { approvedBy: "auto", approvedAt: new Date().toISOString() } : {}),
     });
 
+    // Sync new registration to server so admins on other browsers can see it
+    syncUserToServer(u);
+
     setUser(u);
     setIsAuthenticated(true);
     localStorage.setItem(AUTH_KEY, trimmedEmail);
@@ -239,58 +261,84 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const getAllUsers = (): Record<string, User> => getUserDB();
 
   const updateUserRole = (email: string, newRole: AppRole) => {
-    const db = getUserDB();
-    if (!db[email]) return;
     // Enforce hierarchy: can only assign roles at or below your own level
     if (user && roleRank(newRole) < roleRank(user.role)) return;
+    const db = getUserDB();
     // Cannot change Owner role unless you are Owner
-    if (db[email].role === "Owner" && user?.role !== "Owner") return;
-    db[email] = { ...db[email], role: newRole };
-    localStorage.setItem(USER_DB_KEY, JSON.stringify(db));
+    if (db[email]?.role === "Owner" && user?.role !== "Owner") return;
+    if (db[email]) {
+      db[email] = { ...db[email], role: newRole };
+      localStorage.setItem(USER_DB_KEY, JSON.stringify(db));
+    }
     // If it's the current user, update state too
     if (user && user.email === email) setUser({ ...user, role: newRole });
+    // Sync to server
+    fetch("/api/users", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, role: newRole }),
+    }).catch(() => {});
   };
 
   const approveUser = (targetEmail: string) => {
     const db = getUserDB();
-    if (!db[targetEmail]) return;
     const now = new Date().toISOString();
-    db[targetEmail] = {
-      ...db[targetEmail],
-      accountStatus: "active",
-      approvedBy: user?.email ?? "unknown",
-      approvedAt: now,
-    };
-    localStorage.setItem(USER_DB_KEY, JSON.stringify(db));
-    if (user && user.email === targetEmail) {
-      setUser({ ...user, accountStatus: "active", approvedBy: user.email, approvedAt: now });
+    const approvedBy = user?.email ?? "unknown";
+    // Update local DB if user exists there
+    if (db[targetEmail]) {
+      db[targetEmail] = { ...db[targetEmail], accountStatus: "active", approvedBy, approvedAt: now };
+      localStorage.setItem(USER_DB_KEY, JSON.stringify(db));
+      if (user && user.email === targetEmail) {
+        setUser({ ...user, accountStatus: "active", approvedBy, approvedAt: now });
+      }
     }
+    // Always sync to server (user may only exist server-side)
+    fetch("/api/users", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: targetEmail, accountStatus: "active", approvedBy, approvedAt: now }),
+    }).catch(() => {});
   };
 
   const rejectUser = (targetEmail: string) => {
     const db = getUserDB();
-    if (!db[targetEmail]) return;
-    db[targetEmail] = { ...db[targetEmail], accountStatus: "rejected" };
-    localStorage.setItem(USER_DB_KEY, JSON.stringify(db));
+    if (db[targetEmail]) {
+      db[targetEmail] = { ...db[targetEmail], accountStatus: "rejected" };
+      localStorage.setItem(USER_DB_KEY, JSON.stringify(db));
+    }
+    fetch("/api/users", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: targetEmail, accountStatus: "rejected" }),
+    }).catch(() => {});
   };
 
   const suspendUser = (targetEmail: string) => {
     const db = getUserDB();
-    if (!db[targetEmail]) return;
-    db[targetEmail] = { ...db[targetEmail], accountStatus: "suspended" };
-    localStorage.setItem(USER_DB_KEY, JSON.stringify(db));
+    if (db[targetEmail]) {
+      db[targetEmail] = { ...db[targetEmail], accountStatus: "suspended" };
+      localStorage.setItem(USER_DB_KEY, JSON.stringify(db));
+    }
+    fetch("/api/users", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: targetEmail, accountStatus: "suspended" }),
+    }).catch(() => {});
   };
 
   const reactivateUser = (targetEmail: string) => {
     const db = getUserDB();
-    if (!db[targetEmail]) return;
-    db[targetEmail] = {
-      ...db[targetEmail],
-      accountStatus: "active",
-      approvedBy: user?.email ?? "unknown",
-      approvedAt: new Date().toISOString(),
-    };
-    localStorage.setItem(USER_DB_KEY, JSON.stringify(db));
+    const now = new Date().toISOString();
+    const approvedBy = user?.email ?? "unknown";
+    if (db[targetEmail]) {
+      db[targetEmail] = { ...db[targetEmail], accountStatus: "active", approvedBy, approvedAt: now };
+      localStorage.setItem(USER_DB_KEY, JSON.stringify(db));
+    }
+    fetch("/api/users", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: targetEmail, accountStatus: "active", approvedBy, approvedAt: now }),
+    }).catch(() => {});
   };
 
   const refreshUser = () => {
