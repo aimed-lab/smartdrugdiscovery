@@ -71,6 +71,48 @@ interface AuthContextType {
 const USER_DB_KEY = "sdd-user-db";
 const AUTH_KEY    = "sdd-auth-user";
 
+// ── Server sync helpers ─────────────────────────────────────────────────────
+
+/** Retry a fetch up to `retries` times with exponential backoff. */
+async function fetchWithRetry(
+  url: string,
+  init: RequestInit,
+  retries = 2,
+): Promise<Response> {
+  let lastError: unknown;
+  for (let i = 0; i <= retries; i++) {
+    try {
+      const res = await fetch(url, init);
+      // Retry on 409 (SHA conflict) or 5xx
+      if ((res.status === 409 || res.status >= 500) && i < retries) {
+        await new Promise((r) => setTimeout(r, 300 * (i + 1)));
+        continue;
+      }
+      return res;
+    } catch (err) {
+      lastError = err;
+      if (i < retries) await new Promise((r) => setTimeout(r, 300 * (i + 1)));
+    }
+  }
+  throw lastError;
+}
+
+/** Fetch a user record from the server registry. Returns null if unavailable. */
+async function fetchUserFromServer(email: string): Promise<Partial<User> | null> {
+  try {
+    const res = await fetchWithRetry("/api/users", { method: "GET" }, 1);
+    if (!res.ok) return null;
+    const data = await res.json();
+    if (!data.users?.length) return null;
+    const match = data.users.find(
+      (u: { email: string }) => u.email.toLowerCase() === email.toLowerCase()
+    );
+    return match ?? null;
+  } catch {
+    return null;
+  }
+}
+
 const SEED_USERS: Record<string, User> = {
   "jakechen@gmail.com": {
     name: "Dr. Jake Chen",
@@ -154,13 +196,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
       setUser(u);
       setIsAuthenticated(true);
+
+      // Fetch latest status from server (e.g. user was approved/suspended while offline)
+      fetchUserFromServer(storedEmail).then((serverUser) => {
+        if (!serverUser) return;
+        const freshLocal = getUserDB()[storedEmail] ?? u;
+        const merged: User = {
+          ...freshLocal,
+          ...(serverUser.accountStatus ? { accountStatus: serverUser.accountStatus as AccountStatus } : {}),
+          ...(serverUser.role ? { role: serverUser.role as AppRole } : {}),
+          ...(serverUser.approvedBy ? { approvedBy: serverUser.approvedBy as string } : {}),
+          ...(serverUser.approvedAt ? { approvedAt: serverUser.approvedAt as string } : {}),
+        };
+        saveUserToDB(merged);
+        setUser(merged);
+      });
     }
     setLoading(false);
   }, []);
 
-  // ── Server-side user registry sync (fire-and-forget) ─────────────────────
+  // ── Server-side user registry sync (with retry) ──────────────────────────
   const syncUserToServer = (u: User, method: "POST" | "PUT" = "POST") => {
-    fetch("/api/users", {
+    fetchWithRetry("/api/users", {
       method,
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -174,7 +231,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         approvedAt: u.approvedAt,
         registeredAt: new Date().toISOString(),
       }),
-    }).catch(() => { /* silently fail if API not configured */ });
+    }).catch((err) => {
+      console.warn("[SDD] Failed to sync user to server:", err);
+    });
   };
 
   const login = (email: string, inviteCode: string): string | null => {
@@ -273,11 +332,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // If it's the current user, update state too
     if (user && user.email === email) setUser({ ...user, role: newRole });
     // Sync to server
-    fetch("/api/users", {
+    fetchWithRetry("/api/users", {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ email, role: newRole }),
-    }).catch(() => {});
+    }).catch((err) => console.warn("[SDD] Failed to sync role change:", err));
   };
 
   const approveUser = (targetEmail: string) => {
@@ -293,11 +352,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     }
     // Always sync to server (user may only exist server-side)
-    fetch("/api/users", {
+    fetchWithRetry("/api/users", {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ email: targetEmail, accountStatus: "active", approvedBy, approvedAt: now }),
-    }).catch(() => {});
+    }).catch((err) => console.warn("[SDD] Failed to sync approval:", err));
   };
 
   const rejectUser = (targetEmail: string) => {
@@ -306,11 +365,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       db[targetEmail] = { ...db[targetEmail], accountStatus: "rejected" };
       localStorage.setItem(USER_DB_KEY, JSON.stringify(db));
     }
-    fetch("/api/users", {
+    fetchWithRetry("/api/users", {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ email: targetEmail, accountStatus: "rejected" }),
-    }).catch(() => {});
+    }).catch((err) => console.warn("[SDD] Failed to sync rejection:", err));
   };
 
   const suspendUser = (targetEmail: string) => {
@@ -319,11 +378,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       db[targetEmail] = { ...db[targetEmail], accountStatus: "suspended" };
       localStorage.setItem(USER_DB_KEY, JSON.stringify(db));
     }
-    fetch("/api/users", {
+    fetchWithRetry("/api/users", {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ email: targetEmail, accountStatus: "suspended" }),
-    }).catch(() => {});
+    }).catch((err) => console.warn("[SDD] Failed to sync suspension:", err));
   };
 
   const reactivateUser = (targetEmail: string) => {
@@ -334,18 +393,37 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       db[targetEmail] = { ...db[targetEmail], accountStatus: "active", approvedBy, approvedAt: now };
       localStorage.setItem(USER_DB_KEY, JSON.stringify(db));
     }
-    fetch("/api/users", {
+    fetchWithRetry("/api/users", {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ email: targetEmail, accountStatus: "active", approvedBy, approvedAt: now }),
-    }).catch(() => {});
+    }).catch((err) => console.warn("[SDD] Failed to sync reactivation:", err));
   };
 
   const refreshUser = () => {
     if (!user) return;
+    // First update from localStorage (immediate)
     const db = getUserDB();
-    const fresh = db[user.email];
-    if (fresh) setUser(fresh);
+    const local = db[user.email];
+    if (local) setUser(local);
+
+    // Then fetch from server (authoritative source for status changes)
+    fetchUserFromServer(user.email).then((serverUser) => {
+      if (!serverUser) return;
+      const currentDB = getUserDB();
+      const current = currentDB[user.email] ?? local ?? user;
+      // Merge server data (server is authoritative for accountStatus, role, approvedBy, etc.)
+      const merged: User = {
+        ...current,
+        ...(serverUser.accountStatus ? { accountStatus: serverUser.accountStatus as AccountStatus } : {}),
+        ...(serverUser.role ? { role: serverUser.role as AppRole } : {}),
+        ...(serverUser.approvedBy ? { approvedBy: serverUser.approvedBy as string } : {}),
+        ...(serverUser.approvedAt ? { approvedAt: serverUser.approvedAt as string } : {}),
+      };
+      // Update both state and localStorage
+      setUser(merged);
+      saveUserToDB(merged);
+    });
   };
 
   const logout = () => {

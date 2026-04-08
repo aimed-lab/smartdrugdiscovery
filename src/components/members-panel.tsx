@@ -78,17 +78,25 @@ export function MembersPanel() {
   const [allUsers, setAllUsers] = useState<Record<string, User>>({});
   const [invitations, setInvitations] = useState<Invitation[]>([]);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [syncStatus, setSyncStatus] = useState<"idle" | "syncing" | "error" | "ok">("idle");
 
   const refresh = useCallback(() => {
     // Start with localStorage users
     const localUsers = getAllUsers();
     setAllUsers(localUsers);
+    setSyncStatus("syncing");
 
     // Also fetch from server-side registry and merge
     fetch("/api/users")
-      .then((res) => res.json())
+      .then((res) => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return res.json();
+      })
       .then((data: { users?: { email: string; name: string; role: string; accountStatus: string; invitedBy?: string; invitedAt?: string; approvedBy?: string; approvedAt?: string }[] }) => {
-        if (!data.users?.length) return;
+        if (!data.users?.length) {
+          setSyncStatus("ok");
+          return;
+        }
         const merged = { ...localUsers };
         for (const su of data.users) {
           const email = su.email.toLowerCase();
@@ -108,16 +116,26 @@ export function MembersPanel() {
               approvedAt: su.approvedAt,
             };
           } else {
-            // If server has a more recent status update, prefer it
-            // (e.g., user was approved on another admin's browser)
-            if (su.accountStatus && su.accountStatus !== merged[email].accountStatus) {
-              merged[email] = { ...merged[email], accountStatus: su.accountStatus as import("@/lib/auth-context").AccountStatus };
-            }
+            // Server is authoritative — merge status, role, approval info
+            const serverStatus = su.accountStatus as import("@/lib/auth-context").AccountStatus;
+            const serverRole = su.role as import("@/lib/roles").AppRole;
+            merged[email] = {
+              ...merged[email],
+              ...(su.accountStatus ? { accountStatus: serverStatus } : {}),
+              ...(su.role ? { role: serverRole } : {}),
+              ...(su.approvedBy ? { approvedBy: su.approvedBy } : {}),
+              ...(su.approvedAt ? { approvedAt: su.approvedAt } : {}),
+              ...(su.invitedBy ? { invitedBy: su.invitedBy } : {}),
+            };
           }
         }
         setAllUsers(merged);
+        setSyncStatus("ok");
       })
-      .catch(() => { /* silently fail — localStorage data still shown */ });
+      .catch((err) => {
+        console.warn("[SDD] Failed to fetch server user registry:", err);
+        setSyncStatus("error");
+      });
 
     if (user && hasRole(user.role, "Admin")) {
       setInvitations(getAllInvitations());
@@ -152,13 +170,26 @@ export function MembersPanel() {
                   </span>
                 )}
               </div>
-              <button
-                onClick={() => setRefreshKey(k => k + 1)}
-                className="rounded-md p-1.5 text-muted-foreground hover:bg-accent transition-colors"
-                title="Refresh"
-              >
-                <RefreshCw className="h-3.5 w-3.5" />
-              </button>
+              <div className="flex items-center gap-2">
+                {syncStatus === "syncing" && (
+                  <span className="text-xs text-muted-foreground animate-pulse">Syncing...</span>
+                )}
+                {syncStatus === "error" && (
+                  <span className="text-xs text-amber-600 dark:text-amber-400" title="Server sync failed — showing local data only">
+                    <AlertTriangle className="h-3.5 w-3.5 inline" /> Offline
+                  </span>
+                )}
+                {syncStatus === "ok" && (
+                  <span className="text-xs text-green-600 dark:text-green-400">Synced</span>
+                )}
+                <button
+                  onClick={() => setRefreshKey(k => k + 1)}
+                  className="rounded-md p-1.5 text-muted-foreground hover:bg-accent transition-colors"
+                  title="Refresh from server"
+                >
+                  <RefreshCw className={`h-3.5 w-3.5 ${syncStatus === "syncing" ? "animate-spin" : ""}`} />
+                </button>
+              </div>
             </div>
             <CardDescription>New users awaiting your approval</CardDescription>
           </CardHeader>

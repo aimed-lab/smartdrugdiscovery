@@ -1,7 +1,8 @@
 "use client";
 
+import { useState, useEffect, useRef } from "react";
 import { useAuth, type AccountStatus } from "@/lib/auth-context";
-import { Clock, XCircle, ShieldOff, RefreshCw, LogOut, Mail, UserCheck } from "lucide-react";
+import { Clock, XCircle, ShieldOff, RefreshCw, LogOut, Mail, UserCheck, Loader2 } from "lucide-react";
 
 export function AccountStatusGate({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
@@ -21,8 +22,34 @@ export function AccountStatusGate({ children }: { children: React.ReactNode }) {
   }
 }
 
+/** Auto-polls server every 15s so users see approval without manual refresh. */
 function PendingApprovalScreen() {
   const { user, logout, refreshUser } = useAuth();
+  const [checking, setChecking] = useState(false);
+  const [lastChecked, setLastChecked] = useState<string | null>(null);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Auto-poll server every 15 seconds
+  useEffect(() => {
+    const poll = () => {
+      refreshUser();
+      setLastChecked(new Date().toLocaleTimeString());
+    };
+    // Initial check on mount
+    poll();
+    intervalRef.current = setInterval(poll, 15_000);
+    return () => {
+      if (intervalRef.current) clearInterval(intervalRef.current);
+    };
+  }, [refreshUser]);
+
+  const handleManualCheck = () => {
+    setChecking(true);
+    refreshUser();
+    setLastChecked(new Date().toLocaleTimeString());
+    // Show spinner briefly so user sees feedback
+    setTimeout(() => setChecking(false), 1000);
+  };
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-amber-50 via-white to-orange-50 dark:from-gray-950 dark:via-gray-900 dark:to-gray-950">
@@ -67,17 +94,22 @@ function PendingApprovalScreen() {
           <div className="rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 p-3">
             <p className="text-xs text-amber-800 dark:text-amber-300">
               An administrator will review your request shortly. You&apos;ll get
-              full access once approved.
+              full access once approved. This page checks automatically.
             </p>
           </div>
 
           <div className="flex gap-2">
             <button
-              onClick={refreshUser}
-              className="flex-1 flex items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
+              onClick={handleManualCheck}
+              disabled={checking}
+              className="flex-1 flex items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-70 transition-colors"
             >
-              <RefreshCw className="h-3.5 w-3.5" />
-              Check Status
+              {checking ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <RefreshCw className="h-3.5 w-3.5" />
+              )}
+              {checking ? "Checking..." : "Check Status"}
             </button>
             <button
               onClick={logout}
@@ -87,6 +119,12 @@ function PendingApprovalScreen() {
               Sign Out
             </button>
           </div>
+
+          {lastChecked && (
+            <p className="text-xs text-muted-foreground text-center">
+              Last checked: {lastChecked}
+            </p>
+          )}
         </div>
 
         <p className="text-center text-xs text-muted-foreground mt-6">
