@@ -10,7 +10,36 @@
  *   platform_settings — key-value config (e.g. maxActiveUsers)
  */
 
-import { sql } from "@vercel/postgres";
+import { sql, createPool } from "@vercel/postgres";
+
+/**
+ * Vercel may set env vars with different prefixes depending on how the
+ * database was connected (POSTGRES_URL, STORAGE_URL, DATABASE_URL, etc.).
+ * We detect whichever is available and configure the pool accordingly.
+ */
+function getConnectionString(): string | undefined {
+  return (
+    process.env.POSTGRES_URL ||
+    process.env.STORAGE_URL ||
+    process.env.DATABASE_URL ||
+    process.env.NEON_DATABASE_URL ||
+    undefined
+  );
+}
+
+// Create a pool with the detected connection string so `sql` works
+// even if the env var prefix isn't the default POSTGRES_URL
+const connectionString = getConnectionString();
+if (connectionString && !process.env.POSTGRES_URL) {
+  process.env.POSTGRES_URL = connectionString;
+  // Also set the unpooled variant if available
+  if (!process.env.POSTGRES_URL_NON_POOLING) {
+    process.env.POSTGRES_URL_NON_POOLING =
+      process.env.STORAGE_URL_UNPOOLED ||
+      process.env.DATABASE_URL_UNPOOLED ||
+      connectionString;
+  }
+}
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
