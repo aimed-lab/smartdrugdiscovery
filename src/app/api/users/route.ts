@@ -12,7 +12,7 @@ import {
  */
 
 const VALID_ROLES = ["Owner", "Admin", "TechSupport", "Developer", "User"];
-const VALID_STATUSES = ["active", "pending_approval", "rejected", "suspended"];
+const VALID_STATUSES = ["active", "pending_approval", "invited", "rejected", "suspended"];
 
 // ── Validation helpers ──────────────────────────────────────────────────────
 

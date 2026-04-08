@@ -274,10 +274,25 @@ export function getRemainingQuota(email: string, role: AppRole): number {
   return Math.max(0, max - used);
 }
 
+/** Simple obfuscation for inviter email — not encryption, just prevents casual exposure in URLs. */
+function obfuscate(str: string): string {
+  return btoa(str).replace(/=/g, "").replace(/\+/g, "-").replace(/\//g, "_");
+}
+
+/** Reverse the obfuscation. */
+export function deobfuscate(str: string): string {
+  try {
+    const padded = str.replace(/-/g, "+").replace(/_/g, "/");
+    const pad = (4 - (padded.length % 4)) % 4;
+    return atob(padded + "=".repeat(pad));
+  } catch { return str; }
+}
+
 /**
  * Build an invite link for a token. The link encodes the full invitation
  * payload so the recipient's browser can reconstruct the invitation record
  * (since invitations are stored in localStorage, which is per-browser).
+ * The inviter's email is obfuscated to prevent casual exposure.
  */
 export function buildInviteLink(token: string): string {
   const all = loadInvitations();
@@ -286,12 +301,12 @@ export function buildInviteLink(token: string): string {
 
   if (!inv) return `${base}/login?invite=${token}`;
 
-  // Encode key fields into the URL so the recipient can reconstruct the invitation
+  // Encode key fields — obfuscate the inviter email
   const params = new URLSearchParams({
     invite: token,
     r: inv.assignedRole,
     aa: inv.autoApprove ? "1" : "0",
-    by: inv.createdBy,
+    by: obfuscate(inv.createdBy),
     exp: inv.expiresAt,
     id: inv.id,
   });
@@ -311,7 +326,9 @@ export function importInvitationFromParams(params: URLSearchParams): void {
   const role  = params.get("r") as AppRole | null;
   const exp   = params.get("exp");
   const id    = params.get("id");
-  const by    = params.get("by");
+  const byRaw = params.get("by");
+  // Deobfuscate inviter email (may be plain or obfuscated depending on version)
+  const by    = byRaw ? (byRaw.includes("@") ? byRaw : deobfuscate(byRaw)) : null;
 
   // Need at minimum: token + role + expiry + id + createdBy
   if (!token || !role || !exp || !id || !by) return;

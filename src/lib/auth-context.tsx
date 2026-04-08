@@ -6,7 +6,7 @@ import { validateToken, redeemInvitation } from "@/lib/invitations";
 
 // ── User type ────────────────────────────────────────────────────────────────
 
-export type AccountStatus = "active" | "pending_approval" | "rejected" | "suspended";
+export type AccountStatus = "active" | "pending_approval" | "invited" | "rejected" | "suspended";
 
 export interface User {
   name: string;

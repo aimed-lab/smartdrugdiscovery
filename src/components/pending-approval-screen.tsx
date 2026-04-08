@@ -11,6 +11,7 @@ export function AccountStatusGate({ children }: { children: React.ReactNode }) {
 
   switch (user.accountStatus) {
     case "pending_approval":
+    case "invited":
       return <PendingApprovalScreen />;
     case "rejected":
       return <RejectedScreen />;

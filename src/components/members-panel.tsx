@@ -55,12 +55,14 @@ function StatusBadge({ status }: { status: AccountStatus }) {
   const styles: Record<AccountStatus, string> = {
     active: "bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300",
     pending_approval: "bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300",
+    invited: "bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300",
     rejected: "bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300",
     suspended: "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300",
   };
   const labels: Record<AccountStatus, string> = {
     active: "Active",
-    pending_approval: "Pending",
+    pending_approval: "Pending Approval",
+    invited: "Invited",
     rejected: "Rejected",
     suspended: "Suspended",
   };
@@ -196,6 +198,7 @@ export function MembersPanel() {
 
   const pendingUsers  = Object.values(allUsers).filter(u => u.accountStatus === "pending_approval");
   const activeUsers   = Object.values(allUsers).filter(u => u.accountStatus === "active");
+  const invitedUsers  = Object.values(allUsers).filter(u => u.accountStatus === "invited");
   const inactiveUsers = Object.values(allUsers).filter(u =>
     u.accountStatus === "rejected" || u.accountStatus === "suspended"
   );
@@ -259,6 +262,42 @@ export function MembersPanel() {
                 ))}
               </div>
             )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* ── Invited (not yet signed up) ────────────────────────────── */}
+      {invitedUsers.length > 0 && (
+        <Card>
+          <CardHeader className="pb-3">
+            <div className="flex items-center gap-2">
+              <Mail className="h-4 w-4 text-blue-500" />
+              <CardTitle className="text-base">Invited</CardTitle>
+              <span className="text-xs text-muted-foreground">({invitedUsers.length})</span>
+            </div>
+            <CardDescription>Users who have been invited but haven&apos;t signed up yet</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              {invitedUsers.map(u => (
+                <div key={u.email} className="flex items-center justify-between gap-3 rounded-lg border p-3">
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-medium truncate">{u.name || u.email}</p>
+                    <p className="text-xs text-muted-foreground truncate">{u.email}</p>
+                    <div className="flex items-center gap-2 mt-1">
+                      <RoleBadge role={u.role} />
+                      <StatusBadge status="invited" />
+                      {u.invitedBy && (
+                        <span className="text-xs text-muted-foreground">invited by {u.invitedBy}</span>
+                      )}
+                      {u.invitedAt && (
+                        <span className="text-xs text-muted-foreground">{timeAgo(u.invitedAt)}</span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
           </CardContent>
         </Card>
       )}
@@ -548,13 +587,33 @@ function CreateInvitationForm({ onCreated }: { onCreated: () => void }) {
   function handleCreate() {
     setError("");
     setResult(null);
-    const inv = createInvitation(user!.email, user!.role, role, recipientHint || undefined, autoApprove);
+    const hint = recipientHint.trim();
+    const inv = createInvitation(user!.email, user!.role, role, hint || undefined, autoApprove);
     if ("error" in inv) {
       setError(inv.error);
       return;
     }
     const link = buildInviteLink(inv.token);
     setResult({ token: inv.token, link });
+
+    // If recipient looks like an email, create a placeholder "invited" user
+    // so they show up in the Members list immediately
+    if (hint && hint.includes("@")) {
+      const email = hint.toLowerCase();
+      fetch("/api/users", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email,
+          name: hint.split("@")[0].replace(/[._-]/g, " "),
+          role,
+          accountStatus: "invited",
+          invitedBy: user!.email,
+          invitedAt: new Date().toISOString(),
+        }),
+      }).catch(() => {});
+    }
+
     setRecipientHint("");
     onCreated();
   }
@@ -590,12 +649,12 @@ function CreateInvitationForm({ onCreated }: { onCreated: () => void }) {
           </select>
         </div>
         <div>
-          <label className="text-xs font-medium text-muted-foreground">Recipient (optional)</label>
+          <label className="text-xs font-medium text-muted-foreground">Recipient Email (recommended)</label>
           <input
             type="text"
             value={recipientHint}
             onChange={e => setRecipientHint(e.target.value)}
-            placeholder="name or email"
+            placeholder="user@institution.edu"
             className="mt-1 w-full rounded-md border border-input bg-background px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
           />
         </div>
