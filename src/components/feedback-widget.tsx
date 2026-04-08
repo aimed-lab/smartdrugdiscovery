@@ -92,9 +92,16 @@ export function FeedbackWidget({ user }: { user: { name: string; email: string; 
   const chatEndRef = useRef<HTMLDivElement>(null);
 
   // Detect which API keys the user has configured
-  type AiProvider = "anthropic" | "openai" | "groq";
-  const PROVIDER_LABELS: Record<AiProvider, string> = { anthropic: "Anthropic", openai: "OpenAI", groq: "Groq" };
-  const PROVIDER_KEY_PREFIXES: Record<AiProvider, string> = { anthropic: "sk-ant-", openai: "sk-", groq: "gsk_" };
+  type AiProvider = "anthropic" | "openai" | "groq" | "deepseek" | "kimi" | "glm" | "perplexity" | "google";
+  const PROVIDER_LABELS: Record<AiProvider, string> = {
+    anthropic: "Anthropic", openai: "OpenAI", groq: "Groq",
+    deepseek: "DeepSeek", kimi: "Kimi", glm: "GLM",
+    perplexity: "Perplexity", google: "Gemini",
+  };
+  // Order in which providers appear (preferred first)
+  const PROVIDER_ORDER: AiProvider[] = [
+    "anthropic", "openai", "google", "deepseek", "groq", "perplexity", "kimi", "glm",
+  ];
 
   const [activeProvider, setActiveProvider] = useState<AiProvider | null>(null);
   const [availableProviders, setAvailableProviders] = useState<AiProvider[]>([]);
@@ -107,9 +114,9 @@ export function FeedbackWidget({ user }: { user: { name: string; email: string; 
       if (!stored) { setAvailableProviders([]); setActiveProvider(null); return; }
       const keys = JSON.parse(stored) as Record<string, string>;
       const available: AiProvider[] = [];
-      if (keys.anthropic?.trim()) available.push("anthropic");
-      if (keys.openai?.trim())    available.push("openai");
-      if (keys.groq?.trim())      available.push("groq");
+      for (const p of PROVIDER_ORDER) {
+        if (keys[p]?.trim()) available.push(p);
+      }
       setAvailableProviders(available);
       // Keep current provider if still available, otherwise pick first
       setActiveProvider((prev) => prev && available.includes(prev) ? prev : available[0] ?? null);
@@ -314,7 +321,9 @@ export function FeedbackWidget({ user }: { user: { name: string; email: string; 
                       <p className="text-sm font-medium">API Key Required</p>
                       <p className="text-xs text-muted-foreground leading-relaxed">
                         Set up an API key in Settings to activate the assistant.
-                        Anthropic, OpenAI, and Groq are supported.
+                      </p>
+                      <p className="text-[10px] text-muted-foreground">
+                        Supported: Anthropic, OpenAI, Gemini, DeepSeek, Groq, Perplexity, Kimi, GLM
                       </p>
                     </div>
                     <a
@@ -600,7 +609,7 @@ export function FeedbackWidget({ user }: { user: { name: string; email: string; 
               {!botEnabled && (
                 <div className="rounded-lg border border-primary/20 bg-primary/5 p-3 space-y-1">
                   <p className="text-xs font-medium text-primary">Assistant requires API key</p>
-                  <p className="text-xs text-muted-foreground">Go to Settings → API Keys and enter a key for Anthropic, OpenAI, or Groq to enable the AI assistant.</p>
+                  <p className="text-xs text-muted-foreground">Go to Settings → API Keys and enter a key for any supported provider to enable the AI assistant.</p>
                 </div>
               )}
             </div>

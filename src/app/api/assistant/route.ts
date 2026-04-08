@@ -16,7 +16,7 @@ Key platform facts:
 - Roles: Owner > Admin > TechSupport > Developer > User. Owner role is locked — transfer requires 24-hr cooling-off.
 - Invitation system: two-gate model (invitation token + admin approval). SPARC2026 is the bootstrap token.
 - Persistence: localStorage (client-side). Database integration is planned.
-- AI Chat is powered by your own API key set in Settings → API Keys. Multiple providers supported: Anthropic, OpenAI, Groq.
+- AI Chat is powered by your own API key set in Settings → API Keys. Supported providers: Anthropic, OpenAI, Google Gemini, DeepSeek, Groq, Perplexity, Kimi (Moonshot), GLM (Zhipu AI).
 - MCP servers: ChEMBL (6 tools), PubMed, Open Targets, Talent KG, HuggingFace Hub, Kaggle.
 - Foundation Models: Claude Opus 4, Claude Sonnet 4.5, GPT-4o, Gemini 2.5 Pro, Llama 3.3 70B (Groq), Mistral Large 2, Drug-GPT, BioGPT.
 - Projects have A.G.E. scores (Activity · Goal · Execution).
@@ -30,7 +30,10 @@ Be concise, helpful, and accurate. When unsure, say so. For sensitive actions (d
 
 // ── Provider configurations ──────────────────────────────────────────────────
 
-type Provider = "anthropic" | "openai" | "groq";
+type Provider =
+  | "anthropic" | "openai" | "groq"
+  | "deepseek" | "kimi" | "glm"
+  | "perplexity" | "google";
 
 interface ProviderConfig {
   endpoint: string;
@@ -40,7 +43,27 @@ interface ProviderConfig {
   models: string[];
 }
 
+/** Standard OpenAI-compatible response extractor */
+const openaiExtract = (data: unknown): string => {
+  const d = data as { choices: { message: { content: string } }[] };
+  return d.choices?.[0]?.message?.content ?? "No response.";
+};
+
+/** Standard OpenAI-compatible headers */
+const bearerHeaders = (key: string): Record<string, string> => ({
+  "Authorization": `Bearer ${key}`,
+  "content-type": "application/json",
+});
+
+/** Standard OpenAI-compatible body builder */
+const openaiBody = (model: string, messages: { role: string; content: string }[], system: string) => ({
+  model,
+  max_tokens: 800,
+  messages: [{ role: "system", content: system }, ...messages],
+});
+
 const PROVIDERS: Record<Provider, ProviderConfig> = {
+  // ── Anthropic (custom API format) ────────────────────────────────────────
   anthropic: {
     endpoint: "https://api.anthropic.com/v1/messages",
     buildHeaders: (key) => ({
@@ -60,45 +83,80 @@ const PROVIDERS: Record<Provider, ProviderConfig> = {
     },
     models: ["claude-sonnet-4-5", "claude-3-5-sonnet-20241022", "claude-3-haiku-20240307"],
   },
+
+  // ── OpenAI ───────────────────────────────────────────────────────────────
   openai: {
     endpoint: "https://api.openai.com/v1/chat/completions",
-    buildHeaders: (key) => ({
-      "Authorization": `Bearer ${key}`,
-      "content-type": "application/json",
-    }),
-    buildBody: (model, messages, system) => ({
-      model,
-      max_tokens: 800,
-      messages: [{ role: "system", content: system }, ...messages],
-    }),
-    extractAnswer: (data) => {
-      const d = data as { choices: { message: { content: string } }[] };
-      return d.choices?.[0]?.message?.content ?? "No response.";
-    },
+    buildHeaders: bearerHeaders,
+    buildBody: openaiBody,
+    extractAnswer: openaiExtract,
     models: ["gpt-4o", "gpt-4o-mini"],
   },
+
+  // ── Google Gemini (OpenAI-compatible layer) ──────────────────────────────
+  google: {
+    endpoint: "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
+    buildHeaders: bearerHeaders,
+    buildBody: openaiBody,
+    extractAnswer: openaiExtract,
+    models: ["gemini-2.5-flash-preview-04-17", "gemini-2.0-flash", "gemini-2.0-flash-lite"],
+  },
+
+  // ── DeepSeek ─────────────────────────────────────────────────────────────
+  deepseek: {
+    endpoint: "https://api.deepseek.com/chat/completions",
+    buildHeaders: bearerHeaders,
+    buildBody: openaiBody,
+    extractAnswer: openaiExtract,
+    models: ["deepseek-chat", "deepseek-reasoner"],
+  },
+
+  // ── Groq ─────────────────────────────────────────────────────────────────
   groq: {
     endpoint: "https://api.groq.com/openai/v1/chat/completions",
-    buildHeaders: (key) => ({
-      "Authorization": `Bearer ${key}`,
-      "content-type": "application/json",
-    }),
-    buildBody: (model, messages, system) => ({
-      model,
-      max_tokens: 800,
-      messages: [{ role: "system", content: system }, ...messages],
-    }),
-    extractAnswer: (data) => {
-      const d = data as { choices: { message: { content: string } }[] };
-      return d.choices?.[0]?.message?.content ?? "No response.";
-    },
+    buildHeaders: bearerHeaders,
+    buildBody: openaiBody,
+    extractAnswer: openaiExtract,
     models: ["llama-3.3-70b-versatile", "llama-3.1-8b-instant"],
+  },
+
+  // ── Perplexity (search-augmented) ────────────────────────────────────────
+  perplexity: {
+    endpoint: "https://api.perplexity.ai/chat/completions",
+    buildHeaders: bearerHeaders,
+    buildBody: openaiBody,
+    extractAnswer: openaiExtract,
+    models: ["sonar-pro", "sonar"],
+  },
+
+  // ── Moonshot / Kimi ──────────────────────────────────────────────────────
+  kimi: {
+    endpoint: "https://api.moonshot.cn/v1/chat/completions",
+    buildHeaders: bearerHeaders,
+    buildBody: openaiBody,
+    extractAnswer: openaiExtract,
+    models: ["moonshot-v1-128k", "moonshot-v1-32k", "moonshot-v1-8k"],
+  },
+
+  // ── Zhipu / GLM ──────────────────────────────────────────────────────────
+  glm: {
+    endpoint: "https://open.bigmodel.cn/api/paas/v4/chat/completions",
+    buildHeaders: bearerHeaders,
+    buildBody: openaiBody,
+    extractAnswer: openaiExtract,
+    models: ["glm-4-plus", "glm-4-flash", "glm-4-long"],
   },
 };
 
 /** Friendly diagnostic messages for HTTP errors. */
+const PROVIDER_DISPLAY: Record<Provider, string> = {
+  anthropic: "Anthropic", openai: "OpenAI", groq: "Groq",
+  deepseek: "DeepSeek", kimi: "Kimi (Moonshot)", glm: "GLM (Zhipu)",
+  perplexity: "Perplexity", google: "Google Gemini",
+};
+
 function providerErrorMessage(provider: Provider, status: number, body: string): string {
-  const providerName = provider === "anthropic" ? "Anthropic" : provider === "openai" ? "OpenAI" : "Groq";
+  const providerName = PROVIDER_DISPLAY[provider] ?? provider;
   if (status === 401) {
     return `❌ **Invalid API key** — your ${providerName} API key was rejected. Go to **Settings → API Keys**, check the key, and save it.`;
   }
@@ -153,7 +211,8 @@ export async function POST(req: NextRequest) {
           answer: "⚙️ **Platform assistant requires an API key**\n\n" +
             "To activate the assistant:\n" +
             "1. Go to **Settings → API Keys**\n" +
-            "2. Enter a key for at least one provider (Anthropic, OpenAI, or Groq)\n" +
+            "2. Enter a key for at least one provider:\n" +
+            "   Anthropic · OpenAI · Google Gemini · DeepSeek · Groq · Perplexity · Kimi · GLM\n" +
             "3. Click **Save API Keys**\n\n" +
             "The assistant will use whichever provider you configure. " +
             "Your key is stored locally in your browser and sent securely over HTTPS.",
