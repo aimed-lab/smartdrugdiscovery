@@ -11,7 +11,7 @@ export const PLATFORM_CONFIG = {
   /** Edition / license tier */
   license: "Enterprise",
   /** Copyright line */
-  copyright: "© 2026 Dr. Jake Y. Chen, UAB Systems Pharmacology AI Research Center. All rights reserved.",
+  copyright: "© 2026 Dr. Jake Y. Chen. All rights reserved.",
   /** Tech stack badges */
   techStack: [
     "Next.js 14",
