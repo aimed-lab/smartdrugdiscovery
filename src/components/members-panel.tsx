@@ -15,7 +15,7 @@ import {
 import {
   UserCheck, UserX, Clock, Copy, Check, Link2, Plus,
   Shield, Users, Mail, Trash2, RefreshCw, AlertTriangle,
-  ChevronDown, Settings2,
+  ChevronDown, Settings2, MoreHorizontal, Ban, ShieldOff,
 } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
@@ -130,41 +130,17 @@ export function MembersPanel() {
             ) : (
               <div className="space-y-2">
                 {pendingUsers.map(u => (
-                  <div key={u.email} className="flex items-center justify-between gap-3 rounded-lg border p-3">
-                    <div className="min-w-0 flex-1">
-                      <p className="text-sm font-medium truncate">{u.name}</p>
-                      <p className="text-xs text-muted-foreground truncate">{u.email}</p>
-                      <div className="flex items-center gap-2 mt-1">
-                        <RoleBadge role={u.role} />
-                        {u.invitedBy && (
-                          <span className="text-xs text-muted-foreground">
-                            invited by {u.invitedBy}
-                          </span>
-                        )}
-                        {u.invitedAt && (
-                          <span className="text-xs text-muted-foreground">
-                            {timeAgo(u.invitedAt)}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-1.5 shrink-0">
-                      <button
-                        onClick={() => { approveUser(u.email); setRefreshKey(k => k + 1); }}
-                        className="inline-flex items-center gap-1 rounded-md px-3 py-1.5 text-xs font-medium bg-green-600 text-white hover:bg-green-700 transition-colors"
-                      >
-                        <UserCheck className="h-3.5 w-3.5" />
-                        Approve
-                      </button>
-                      <button
-                        onClick={() => { rejectUser(u.email); setRefreshKey(k => k + 1); }}
-                        className="inline-flex items-center gap-1 rounded-md px-3 py-1.5 text-xs font-medium bg-red-600 text-white hover:bg-red-700 transition-colors"
-                      >
-                        <UserX className="h-3.5 w-3.5" />
-                        Reject
-                      </button>
-                    </div>
-                  </div>
+                  <ApprovalRow
+                    key={u.email}
+                    member={u}
+                    adminRole={user!.role}
+                    onApprove={(role) => {
+                      if (role !== u.role) updateUserRole(u.email, role);
+                      approveUser(u.email);
+                      setRefreshKey(k => k + 1);
+                    }}
+                    onReject={() => { rejectUser(u.email); setRefreshKey(k => k + 1); }}
+                  />
                 ))}
               </div>
             )}
@@ -221,13 +197,10 @@ export function MembersPanel() {
                       {isAdmin && (
                         <td className="py-2">
                           {u.email !== user?.email && u.role !== "Owner" && (
-                            <button
-                              onClick={() => { suspendUser(u.email); setRefreshKey(k => k + 1); }}
-                              className="text-xs text-muted-foreground hover:text-destructive transition-colors"
-                              title="Suspend user"
-                            >
-                              Suspend
-                            </button>
+                            <ActionsMenu
+                              onSuspend={() => { suspendUser(u.email); setRefreshKey(k => k + 1); }}
+                              onRevoke={() => { rejectUser(u.email); setRefreshKey(k => k + 1); }}
+                            />
                           )}
                         </td>
                       )}
@@ -318,6 +291,106 @@ export function MembersPanel() {
 }
 
 // ── Sub-components ───────────────────────────────────────────────────────────
+
+function ApprovalRow({ member, adminRole, onApprove, onReject }: {
+  member: User;
+  adminRole: AppRole;
+  onApprove: (role: AppRole) => void;
+  onReject: () => void;
+}) {
+  const [selectedRole, setSelectedRole] = useState<AppRole>(member.role);
+  const maxIdx = ROLE_ORDER.indexOf(adminRole);
+  const assignableRoles = ROLE_ORDER.filter((_, i) => i >= maxIdx);
+
+  return (
+    <div className="flex items-center justify-between gap-3 rounded-lg border p-3">
+      <div className="min-w-0 flex-1">
+        <p className="text-sm font-medium truncate">{member.name}</p>
+        <p className="text-xs text-muted-foreground truncate">{member.email}</p>
+        <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+          <div className="flex items-center gap-1.5">
+            <span className="text-xs text-muted-foreground">Role:</span>
+            <select
+              value={selectedRole}
+              onChange={e => setSelectedRole(e.target.value as AppRole)}
+              className="rounded-md border border-input bg-background px-2 py-0.5 text-xs focus:outline-none focus:ring-1 focus:ring-ring"
+            >
+              {assignableRoles.map(r => (
+                <option key={r} value={r}>{ROLE_META[r].label}</option>
+              ))}
+            </select>
+          </div>
+          {member.invitedBy && (
+            <span className="text-xs text-muted-foreground">
+              invited by {member.invitedBy}
+            </span>
+          )}
+          {member.invitedAt && (
+            <span className="text-xs text-muted-foreground">
+              {timeAgo(member.invitedAt)}
+            </span>
+          )}
+        </div>
+      </div>
+      <div className="flex items-center gap-1.5 shrink-0">
+        <button
+          onClick={() => onApprove(selectedRole)}
+          className="inline-flex items-center gap-1 rounded-md px-3 py-1.5 text-xs font-medium bg-green-600 text-white hover:bg-green-700 transition-colors"
+        >
+          <UserCheck className="h-3.5 w-3.5" />
+          Approve
+        </button>
+        <button
+          onClick={onReject}
+          className="inline-flex items-center gap-1 rounded-md px-3 py-1.5 text-xs font-medium bg-red-600 text-white hover:bg-red-700 transition-colors"
+        >
+          <UserX className="h-3.5 w-3.5" />
+          Reject
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function ActionsMenu({ onSuspend, onRevoke }: {
+  onSuspend: () => void;
+  onRevoke: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <div className="relative">
+      <button
+        onClick={() => setOpen(!open)}
+        className="rounded-md p-1 text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
+        title="Actions"
+      >
+        <MoreHorizontal className="h-4 w-4" />
+      </button>
+      {open && (
+        <>
+          <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
+          <div className="absolute right-0 top-full z-20 mt-1 w-44 rounded-md border bg-card shadow-lg py-1">
+            <button
+              onClick={() => { setOpen(false); onSuspend(); }}
+              className="flex items-center gap-2 w-full px-3 py-1.5 text-xs text-left hover:bg-accent transition-colors"
+            >
+              <Ban className="h-3.5 w-3.5 text-amber-500" />
+              Suspend Account
+            </button>
+            <button
+              onClick={() => { setOpen(false); onRevoke(); }}
+              className="flex items-center gap-2 w-full px-3 py-1.5 text-xs text-left text-destructive hover:bg-destructive/10 transition-colors"
+            >
+              <ShieldOff className="h-3.5 w-3.5" />
+              Revoke Access
+            </button>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
 
 function RoleSelector({ currentRole, maxRole, onChange }: {
   currentRole: AppRole;

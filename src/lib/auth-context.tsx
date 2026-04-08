@@ -1,7 +1,7 @@
 "use client";
 
 import { createContext, useContext, useState, ReactNode, useEffect } from "react";
-import { type AppRole } from "@/lib/roles";
+import { type AppRole, roleRank } from "@/lib/roles";
 import { validateToken, redeemInvitation } from "@/lib/invitations";
 
 // ── User type ────────────────────────────────────────────────────────────────
@@ -241,6 +241,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const updateUserRole = (email: string, newRole: AppRole) => {
     const db = getUserDB();
     if (!db[email]) return;
+    // Enforce hierarchy: can only assign roles at or below your own level
+    if (user && roleRank(newRole) < roleRank(user.role)) return;
+    // Cannot change Owner role unless you are Owner
+    if (db[email].role === "Owner" && user?.role !== "Owner") return;
     db[email] = { ...db[email], role: newRole };
     localStorage.setItem(USER_DB_KEY, JSON.stringify(db));
     // If it's the current user, update state too
