@@ -243,7 +243,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!trimmedEmail || !trimmedEmail.includes("@"))
       return "Please enter a valid email address.";
 
-    // Check if user already exists (returning user)
+    // Check if user already exists locally (returning user)
     const db = getUserDB();
     if (db[trimmedEmail]) {
       const existingUser = db[trimmedEmail];
@@ -257,6 +257,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(existingUser);
       setIsAuthenticated(true);
       localStorage.setItem(AUTH_KEY, trimmedEmail);
+
+      // Also check server for latest status (async, non-blocking)
+      fetchUserFromServer(trimmedEmail).then((serverUser) => {
+        if (!serverUser) return;
+        const fresh = getUserDB()[trimmedEmail] ?? existingUser;
+        const merged: User = {
+          ...fresh,
+          ...(serverUser.accountStatus ? { accountStatus: serverUser.accountStatus as AccountStatus } : {}),
+          ...(serverUser.role ? { role: serverUser.role as AppRole } : {}),
+          ...(serverUser.approvedBy ? { approvedBy: serverUser.approvedBy as string } : {}),
+          ...(serverUser.approvedAt ? { approvedAt: serverUser.approvedAt as string } : {}),
+        };
+        saveUserToDB(merged);
+        setUser(merged);
+      });
       return null;
     }
 
@@ -268,10 +283,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!invitation)
       return "Invalid or expired invitation code. Please check and try again.";
 
-    // Redeem the invitation
+    // Redeem the invitation locally
     const redeemed = redeemInvitation(trimmedCode, trimmedEmail);
     if (!redeemed)
       return "This invitation has already been used.";
+
+    // Also redeem on server (async, non-blocking)
+    fetchWithRetry("/api/invitations", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "redeem", token: trimmedCode, acceptedBy: trimmedEmail }),
+    }).catch((err) => console.warn("[SDD] Failed to sync invitation redemption:", err));
 
     // Create user with the invitation's assigned role
     const accountStatus: AccountStatus = redeemed.autoApprove ? "active" : "pending_approval";
@@ -283,7 +305,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       ...(redeemed.autoApprove ? { approvedBy: "auto", approvedAt: new Date().toISOString() } : {}),
     });
 
-    // Sync new registration to server so admins on other browsers can see it
+    // Sync new registration to server so admins see it immediately
     syncUserToServer(u);
 
     setUser(u);

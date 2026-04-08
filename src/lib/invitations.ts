@@ -143,6 +143,22 @@ export function createInvitation(
   const all = loadInvitations();
   all.push(invitation);
   saveInvitations(all);
+
+  // Sync to server (non-blocking)
+  fetch("/api/invitations", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      id: invitation.id,
+      token: invitation.token,
+      createdBy: invitation.createdBy,
+      assignedRole: invitation.assignedRole,
+      recipientHint: invitation.recipientHint,
+      autoApprove: invitation.autoApprove,
+      expiresAt: invitation.expiresAt,
+    }),
+  }).catch((err) => console.warn("[SDD] Failed to sync invitation to server:", err));
+
   return invitation;
 }
 
@@ -226,6 +242,14 @@ export function revokeInvitation(id: string): boolean {
   if (!inv) return false;
   inv.status = "revoked";
   saveInvitations(all);
+
+  // Sync to server (non-blocking)
+  fetch("/api/invitations", {
+    method: "DELETE",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ id }),
+  }).catch((err) => console.warn("[SDD] Failed to sync revocation to server:", err));
+
   return true;
 }
 

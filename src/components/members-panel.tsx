@@ -137,10 +137,56 @@ export function MembersPanel() {
         setSyncStatus("error");
       });
 
+    // Load invitations from localStorage first
     if (user && hasRole(user.role, "Admin")) {
       setInvitations(getAllInvitations());
     } else if (user) {
       setInvitations(getInvitationsByUser(user.email));
+    }
+
+    // Also fetch invitations from server and merge
+    if (user) {
+      const scope = hasRole(user.role, "Admin") ? "all" : "";
+      const url = scope
+        ? "/api/invitations?scope=all"
+        : `/api/invitations?email=${encodeURIComponent(user.email)}`;
+      fetch(url)
+        .then((res) => res.ok ? res.json() : null)
+        .then((data) => {
+          if (!data?.invitations?.length) return;
+          // Merge server invitations with local ones (server is authoritative)
+          const localInvs = hasRole(user.role, "Admin") ? getAllInvitations() : getInvitationsByUser(user.email);
+          const localById = new Map(localInvs.map((i: Invitation) => [i.id, i]));
+          const merged: Invitation[] = [...localInvs];
+          for (const si of data.invitations) {
+            if (!localById.has(si.id)) {
+              // Server-only invitation — add it
+              merged.push({
+                id: si.id,
+                token: si.token,
+                createdBy: si.created_by ?? si.createdBy,
+                assignedRole: si.assigned_role ?? si.assignedRole,
+                recipientHint: si.recipient_hint ?? si.recipientHint,
+                autoApprove: si.auto_approve ?? si.autoApprove ?? false,
+                status: si.status,
+                acceptedBy: si.accepted_by ?? si.acceptedBy ?? null,
+                createdAt: si.created_at ?? si.createdAt,
+                expiresAt: si.expires_at ?? si.expiresAt,
+                acceptedAt: si.accepted_at ?? si.acceptedAt ?? null,
+              });
+            } else {
+              // Update status from server if different
+              const local = localById.get(si.id)!;
+              const serverStatus = si.status;
+              if (serverStatus !== local.status) {
+                const idx = merged.findIndex((m: Invitation) => m.id === si.id);
+                if (idx >= 0) merged[idx] = { ...merged[idx], status: serverStatus };
+              }
+            }
+          }
+          setInvitations(merged);
+        })
+        .catch(() => { /* server invitations unavailable, local data still shown */ });
     }
   }, [getAllUsers, user]);
 
@@ -680,8 +726,27 @@ function PlatformCapacityCard({ activeCount }: { activeCount: number }) {
   const [settings, setSettings] = useState(getPlatformSettings());
   const [saved, setSaved] = useState(false);
 
+  // Load from server on mount
+  useEffect(() => {
+    fetch("/api/settings?key=maxActiveUsers")
+      .then((res) => res.ok ? res.json() : null)
+      .then((data) => {
+        if (data?.value) {
+          const serverMax = Number(data.value);
+          if (serverMax > 0) setSettings({ maxActiveUsers: serverMax });
+        }
+      })
+      .catch(() => {});
+  }, []);
+
   function handleSave() {
     savePlatformSettings(settings);
+    // Also save to server
+    fetch("/api/settings", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ key: "maxActiveUsers", value: String(settings.maxActiveUsers) }),
+    }).catch(() => {});
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
   }
