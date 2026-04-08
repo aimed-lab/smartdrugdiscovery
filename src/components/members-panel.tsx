@@ -664,12 +664,23 @@ function CreateInvitationForm({ onCreated }: { onCreated: () => void }) {
         <label className="flex items-center gap-2 text-xs">
           <input
             type="checkbox"
-            checked={autoApprove}
+            checked={autoApprove || (recipientHint.trim().includes("@"))}
             onChange={e => setAutoApprove(e.target.checked)}
+            disabled={recipientHint.trim().includes("@")}
             className="rounded border-gray-300"
           />
-          <span>Auto-approve (skip approval queue)</span>
+          <span>
+            {recipientHint.trim().includes("@")
+              ? "Auto-approved (email invitations skip the approval queue)"
+              : "Auto-approve (skip approval queue)"}
+          </span>
         </label>
+      )}
+
+      {!canAutoApprove && recipientHint.trim().includes("@") && (
+        <p className="text-xs text-green-700 dark:text-green-400">
+          ✓ Email invitations are auto-approved — no admin review needed.
+        </p>
       )}
 
       <div className="flex items-center gap-2">
@@ -691,6 +702,11 @@ function CreateInvitationForm({ onCreated }: { onCreated: () => void }) {
             <Check className="h-4 w-4 text-green-600" />
             <span className="text-sm font-medium text-green-800 dark:text-green-300">Invitation created!</span>
           </div>
+          <div className="rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 px-3 py-2">
+            <p className="text-xs font-medium text-amber-800 dark:text-amber-300">
+              📋 Copy the link below and send it to the recipient via email or message.
+            </p>
+          </div>
           <div className="flex items-center gap-2">
             <code className="flex-1 text-xs bg-white dark:bg-gray-900 rounded px-2 py-1 border truncate">
               {result.link}
@@ -700,7 +716,7 @@ function CreateInvitationForm({ onCreated }: { onCreated: () => void }) {
               className="inline-flex items-center gap-1 rounded-md px-2.5 py-1 text-xs font-medium border border-input bg-background hover:bg-accent transition-colors shrink-0"
             >
               {copied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
-              {copied ? "Copied" : "Copy"}
+              {copied ? "Copied!" : "Copy Link"}
             </button>
           </div>
           <p className="text-xs text-muted-foreground">

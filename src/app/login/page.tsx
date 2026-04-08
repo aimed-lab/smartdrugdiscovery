@@ -11,6 +11,7 @@ export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [inviteCode, setInviteCode] = useState("");
   const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
 
   // Pre-fill invite code from URL ?invite=TOKEN and import invitation data
   let searchParams: ReturnType<typeof useSearchParams> | null = null;
@@ -26,11 +27,16 @@ export default function LoginPage() {
     }
   }, [searchParams]);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
-    const err = login(email, inviteCode);
-    if (err) setError(err);
+    setLoading(true);
+    try {
+      const err = await login(email, inviteCode);
+      if (err) setError(err);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -89,9 +95,10 @@ export default function LoginPage() {
               {error && <p className="text-sm text-destructive">{error}</p>}
               <button
                 type="submit"
-                className="w-full rounded-md px-4 py-2.5 text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90"
+                disabled={loading}
+                className="w-full rounded-md px-4 py-2.5 text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-70 transition-colors"
               >
-                Sign In
+                {loading ? "Signing in..." : "Sign In"}
               </button>
             </form>
           </CardContent>

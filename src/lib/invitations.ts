@@ -113,9 +113,12 @@ export function createInvitation(
     return { error: "You cannot invite someone to a higher role than your own." };
   }
 
-  // Auto-approve only for Admin+
+  // Auto-approve: always true when recipient is a specific email address
+  // (the admin knows exactly who they're inviting — no approval needed).
+  // For generic/code-only invitations, only Admin+ can set autoApprove.
+  const isEmailInvite = !!recipientHint && recipientHint.includes("@");
   const canAutoApprove = roleRank(inviterRole) <= roleRank("Admin");
-  const finalAutoApprove = autoApprove && canAutoApprove;
+  const finalAutoApprove = isEmailInvite ? true : (autoApprove && canAutoApprove);
 
   // Quota check
   const remaining = getRemainingQuota(inviterEmail, inviterRole);

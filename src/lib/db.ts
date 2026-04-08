@@ -182,25 +182,12 @@ export async function updateUserFields(
   await ensureSchema();
   const lowerEmail = email.toLowerCase();
 
-  // Build dynamic update — only set provided fields
-  const sets: string[] = [];
-  const values: unknown[] = [];
+  if (Object.keys(fields).length === 0) return getUserByEmail(lowerEmail);
 
-  if (fields.role !== undefined) { sets.push("role = $" + (values.length + 1)); values.push(fields.role); }
-  if (fields.account_status !== undefined) { sets.push("account_status = $" + (values.length + 1)); values.push(fields.account_status); }
-  if (fields.approved_by !== undefined) { sets.push("approved_by = $" + (values.length + 1)); values.push(fields.approved_by); }
-  if (fields.approved_at !== undefined) { sets.push("approved_at = $" + (values.length + 1)); values.push(fields.approved_at); }
-  if (fields.name !== undefined) { sets.push("name = $" + (values.length + 1)); values.push(fields.name); }
-  if (fields.title !== undefined) { sets.push("title = $" + (values.length + 1)); values.push(fields.title); }
-  if (fields.institution !== undefined) { sets.push("institution = $" + (values.length + 1)); values.push(fields.institution); }
-
-  if (sets.length === 0) return getUserByEmail(lowerEmail);
-
-  sets.push("updated_at = NOW()");
-
-  // Use tagged template for simple cases, raw query for dynamic updates
-  // Since @vercel/postgres doesn't support dynamic column sets easily,
-  // we use specific update queries based on what's being updated
+  // COALESCE(newValue, existingColumn) → uses newValue if provided (non-null),
+  // otherwise keeps the existing column value. This is correct because callers
+  // only include fields they want to change in the `fields` object, and
+  // unincluded fields map to null via `?? null`.
   const { rows } = await sql<DBUser>`
     UPDATE users SET
       role = COALESCE(${fields.role ?? null}, role),

@@ -45,7 +45,7 @@ interface AuthContextType {
   isAuthenticated: boolean;
   loading: boolean;
   user: User | null;
-  login: (email: string, inviteCode: string) => string | null;
+  login: (email: string, inviteCode: string) => Promise<string | null>;
   logout: () => void;
   updateUser: (updates: Partial<User>) => void;
   initiateOwnerTransfer: (toEmail: string) => void;
@@ -236,19 +236,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
   };
 
-  const login = (email: string, inviteCode: string): string | null => {
+  const login = async (email: string, inviteCode: string): Promise<string | null> => {
     const trimmedEmail = email.trim().toLowerCase();
     const trimmedCode  = inviteCode.trim();
 
     if (!trimmedEmail || !trimmedEmail.includes("@"))
       return "Please enter a valid email address.";
 
-    // Check if user already exists locally (returning user)
+    // ── 1. Check if user already exists locally (returning user) ────────
     const db = getUserDB();
     if (db[trimmedEmail]) {
       const existingUser = db[trimmedEmail];
-      // Returning users don't need invite code (they already have an account)
-      // But if they're rejected/suspended, block them
       if (existingUser.accountStatus === "rejected")
         return "Your access request was not approved. Contact your administrator.";
       if (existingUser.accountStatus === "suspended")
@@ -258,7 +256,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setIsAuthenticated(true);
       localStorage.setItem(AUTH_KEY, trimmedEmail);
 
-      // Also check server for latest status (async, non-blocking)
+      // Fetch latest status from server (non-blocking update)
       fetchUserFromServer(trimmedEmail).then((serverUser) => {
         if (!serverUser) return;
         const fresh = getUserDB()[trimmedEmail] ?? existingUser;
@@ -275,7 +273,46 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return null;
     }
 
-    // New user — must have a valid invitation token
+    // ── 2. Not in local DB — check server for existing account ──────────
+    // This handles: user was approved on server, but is logging in from a
+    // new browser / after clearing localStorage. They shouldn't need an
+    // invite code again — the server already knows them.
+    const serverUser = await fetchUserFromServer(trimmedEmail);
+    if (serverUser && serverUser.accountStatus) {
+      const status = serverUser.accountStatus as AccountStatus;
+      if (status === "rejected")
+        return "Your access request was not approved. Contact your administrator.";
+      if (status === "suspended")
+        return "Your account has been suspended. Contact your administrator.";
+
+      // Reconstruct user locally from server data
+      const namePart = (serverUser.name as string) || trimmedEmail.split("@")[0].replace(/[._-]/g, " ");
+      const parts = namePart.split(" ").filter(Boolean);
+      const avatar = parts.length >= 2
+        ? (parts[0][0] + parts[1][0]).toUpperCase()
+        : namePart.slice(0, 2).toUpperCase();
+
+      const restored: User = {
+        name: (serverUser.name as string) || namePart,
+        email: trimmedEmail,
+        title: (serverUser.title as string) || "",
+        institution: (serverUser.institution as string) || trimmedEmail.split("@")[1],
+        avatar,
+        role: (serverUser.role as AppRole) || "User",
+        accountStatus: status,
+        invitedBy: serverUser.invitedBy as string | undefined,
+        invitedAt: serverUser.invitedAt as string | undefined,
+        approvedBy: serverUser.approvedBy as string | undefined,
+        approvedAt: serverUser.approvedAt as string | undefined,
+      };
+      saveUserToDB(restored);
+      setUser(restored);
+      setIsAuthenticated(true);
+      localStorage.setItem(AUTH_KEY, trimmedEmail);
+      return null;
+    }
+
+    // ── 3. Truly new user — must have a valid invitation token ──────────
     if (!trimmedCode)
       return "Invitation code is required for new accounts.";
 
@@ -362,14 +399,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const approveUser = (targetEmail: string) => {
+    const lowerEmail = targetEmail.toLowerCase();
     const db = getUserDB();
     const now = new Date().toISOString();
     const approvedBy = user?.email ?? "unknown";
     // Update local DB if user exists there
-    if (db[targetEmail]) {
-      db[targetEmail] = { ...db[targetEmail], accountStatus: "active", approvedBy, approvedAt: now };
+    if (db[lowerEmail]) {
+      db[lowerEmail] = { ...db[lowerEmail], accountStatus: "active", approvedBy, approvedAt: now };
       localStorage.setItem(USER_DB_KEY, JSON.stringify(db));
-      if (user && user.email === targetEmail) {
+      if (user && user.email === lowerEmail) {
         setUser({ ...user, accountStatus: "active", approvedBy, approvedAt: now });
       }
     }
@@ -377,48 +415,54 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     fetchWithRetry("/api/users", {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email: targetEmail, accountStatus: "active", approvedBy, approvedAt: now }),
+      body: JSON.stringify({ email: lowerEmail, accountStatus: "active", approvedBy, approvedAt: now }),
+    }).then((res) => {
+      if (!res.ok) console.error("[SDD] Server rejected approval:", res.status);
+      else console.log("[SDD] Approval synced to server for:", lowerEmail);
     }).catch((err) => console.warn("[SDD] Failed to sync approval:", err));
   };
 
   const rejectUser = (targetEmail: string) => {
+    const lowerEmail = targetEmail.toLowerCase();
     const db = getUserDB();
-    if (db[targetEmail]) {
-      db[targetEmail] = { ...db[targetEmail], accountStatus: "rejected" };
+    if (db[lowerEmail]) {
+      db[lowerEmail] = { ...db[lowerEmail], accountStatus: "rejected" };
       localStorage.setItem(USER_DB_KEY, JSON.stringify(db));
     }
     fetchWithRetry("/api/users", {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email: targetEmail, accountStatus: "rejected" }),
+      body: JSON.stringify({ email: lowerEmail, accountStatus: "rejected" }),
     }).catch((err) => console.warn("[SDD] Failed to sync rejection:", err));
   };
 
   const suspendUser = (targetEmail: string) => {
+    const lowerEmail = targetEmail.toLowerCase();
     const db = getUserDB();
-    if (db[targetEmail]) {
-      db[targetEmail] = { ...db[targetEmail], accountStatus: "suspended" };
+    if (db[lowerEmail]) {
+      db[lowerEmail] = { ...db[lowerEmail], accountStatus: "suspended" };
       localStorage.setItem(USER_DB_KEY, JSON.stringify(db));
     }
     fetchWithRetry("/api/users", {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email: targetEmail, accountStatus: "suspended" }),
+      body: JSON.stringify({ email: lowerEmail, accountStatus: "suspended" }),
     }).catch((err) => console.warn("[SDD] Failed to sync suspension:", err));
   };
 
   const reactivateUser = (targetEmail: string) => {
+    const lowerEmail = targetEmail.toLowerCase();
     const db = getUserDB();
     const now = new Date().toISOString();
     const approvedBy = user?.email ?? "unknown";
-    if (db[targetEmail]) {
-      db[targetEmail] = { ...db[targetEmail], accountStatus: "active", approvedBy, approvedAt: now };
+    if (db[lowerEmail]) {
+      db[lowerEmail] = { ...db[lowerEmail], accountStatus: "active", approvedBy, approvedAt: now };
       localStorage.setItem(USER_DB_KEY, JSON.stringify(db));
     }
     fetchWithRetry("/api/users", {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email: targetEmail, accountStatus: "active", approvedBy, approvedAt: now }),
+      body: JSON.stringify({ email: lowerEmail, accountStatus: "active", approvedBy, approvedAt: now }),
     }).catch((err) => console.warn("[SDD] Failed to sync reactivation:", err));
   };
 
