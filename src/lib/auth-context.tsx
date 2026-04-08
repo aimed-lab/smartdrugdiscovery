@@ -2,7 +2,6 @@
 
 import { createContext, useContext, useState, ReactNode, useEffect } from "react";
 import { type AppRole, roleRank } from "@/lib/roles";
-import { validateToken, redeemInvitation } from "@/lib/invitations";
 
 // ── User type ────────────────────────────────────────────────────────────────
 
@@ -243,41 +242,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!trimmedEmail || !trimmedEmail.includes("@"))
       return "Please enter a valid email address.";
 
-    // ── 1. Check if user already exists locally (returning user) ────────
+    // ── 1. Check if user already exists (local or server) ──────────────
+    // First check localStorage for instant response
     const db = getUserDB();
-    if (db[trimmedEmail]) {
-      const existingUser = db[trimmedEmail];
-      if (existingUser.accountStatus === "rejected")
+    const localUser = db[trimmedEmail];
+    if (localUser) {
+      if (localUser.accountStatus === "rejected")
         return "Your access request was not approved. Contact your administrator.";
-      if (existingUser.accountStatus === "suspended")
+      if (localUser.accountStatus === "suspended")
         return "Your account has been suspended. Contact your administrator.";
-
-      setUser(existingUser);
-      setIsAuthenticated(true);
-      localStorage.setItem(AUTH_KEY, trimmedEmail);
-
-      // Fetch latest status from server (non-blocking update)
-      fetchUserFromServer(trimmedEmail).then((serverUser) => {
-        if (!serverUser) return;
-        const fresh = getUserDB()[trimmedEmail] ?? existingUser;
-        const merged: User = {
-          ...fresh,
-          ...(serverUser.accountStatus ? { accountStatus: serverUser.accountStatus as AccountStatus } : {}),
-          ...(serverUser.role ? { role: serverUser.role as AppRole } : {}),
-          ...(serverUser.approvedBy ? { approvedBy: serverUser.approvedBy as string } : {}),
-          ...(serverUser.approvedAt ? { approvedAt: serverUser.approvedAt as string } : {}),
-        };
-        saveUserToDB(merged);
-        setUser(merged);
-      });
-      return null;
     }
 
-    // ── 2. Not in local DB — check server for existing account ──────────
-    // This handles: user was approved on server, but is logging in from a
-    // new browser / after clearing localStorage. They shouldn't need an
-    // invite code again — the server already knows them.
+    // ALWAYS check server for authoritative status (covers new browsers,
+    // status changes by admin, etc.)
     const serverUser = await fetchUserFromServer(trimmedEmail);
+
     if (serverUser && serverUser.accountStatus) {
       const status = serverUser.accountStatus as AccountStatus;
       if (status === "rejected")
@@ -285,71 +264,88 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (status === "suspended")
         return "Your account has been suspended. Contact your administrator.";
 
-      // Reconstruct user locally from server data
-      const namePart = (serverUser.name as string) || trimmedEmail.split("@")[0].replace(/[._-]/g, " ");
-      const parts = namePart.split(" ").filter(Boolean);
-      const avatar = parts.length >= 2
-        ? (parts[0][0] + parts[1][0]).toUpperCase()
-        : namePart.slice(0, 2).toUpperCase();
-
-      const restored: User = {
-        name: (serverUser.name as string) || namePart,
-        email: trimmedEmail,
-        title: (serverUser.title as string) || "",
-        institution: (serverUser.institution as string) || trimmedEmail.split("@")[1],
-        avatar,
-        role: (serverUser.role as AppRole) || "User",
-        accountStatus: status,
-        invitedBy: serverUser.invitedBy as string | undefined,
-        invitedAt: serverUser.invitedAt as string | undefined,
-        approvedBy: serverUser.approvedBy as string | undefined,
-        approvedAt: serverUser.approvedAt as string | undefined,
-      };
-      saveUserToDB(restored);
-      setUser(restored);
+      // Server knows this user — reconstruct locally and log in
+      const u = buildUserFromServer(trimmedEmail, serverUser, localUser);
+      saveUserToDB(u);
+      setUser(u);
       setIsAuthenticated(true);
       localStorage.setItem(AUTH_KEY, trimmedEmail);
       return null;
     }
 
-    // ── 3. Truly new user — must have a valid invitation token ──────────
+    // Local user exists but not on server — still let them in
+    // (covers offline/server-down scenarios)
+    if (localUser && localUser.accountStatus !== "rejected" && localUser.accountStatus !== "suspended") {
+      setUser(localUser);
+      setIsAuthenticated(true);
+      localStorage.setItem(AUTH_KEY, trimmedEmail);
+      // Try to sync to server in background
+      syncUserToServer(localUser);
+      return null;
+    }
+
+    // ── 2. New user — validate & redeem token on the SERVER ────────────
+    // This is the critical fix: tokens are validated in Postgres, not in
+    // the invitee's (empty) localStorage.
     if (!trimmedCode)
       return "Invitation code is required for new accounts.";
 
-    const invitation = validateToken(trimmedCode);
-    if (!invitation)
-      return "Invalid or expired invitation code. Please check and try again.";
+    try {
+      const res = await fetchWithRetry("/api/join", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: trimmedEmail, token: trimmedCode }),
+      });
 
-    // Redeem the invitation locally
-    const redeemed = redeemInvitation(trimmedCode, trimmedEmail);
-    if (!redeemed)
-      return "This invitation has already been used.";
+      const data = await res.json();
 
-    // Also redeem on server (async, non-blocking)
-    fetchWithRetry("/api/invitations", {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "redeem", token: trimmedCode, acceptedBy: trimmedEmail }),
-    }).catch((err) => console.warn("[SDD] Failed to sync invitation redemption:", err));
+      if (!data.ok) {
+        return data.error || "Invalid or expired invitation code.";
+      }
 
-    // Create user with the invitation's assigned role
-    const accountStatus: AccountStatus = redeemed.autoApprove ? "active" : "pending_approval";
-    const u = lookupOrCreateUser(trimmedEmail, {
-      role: redeemed.assignedRole,
-      accountStatus,
-      invitedBy: redeemed.createdBy,
-      invitedAt: new Date().toISOString(),
-      ...(redeemed.autoApprove ? { approvedBy: "auto", approvedAt: new Date().toISOString() } : {}),
-    });
-
-    // Sync new registration to server so admins see it immediately
-    syncUserToServer(u);
-
-    setUser(u);
-    setIsAuthenticated(true);
-    localStorage.setItem(AUTH_KEY, trimmedEmail);
-    return null;
+      // Server validated + redeemed + created the user. Build local copy.
+      const su = data.user;
+      const u = buildUserFromServer(trimmedEmail, su, null);
+      saveUserToDB(u);
+      setUser(u);
+      setIsAuthenticated(true);
+      localStorage.setItem(AUTH_KEY, trimmedEmail);
+      return null;
+    } catch (err) {
+      console.error("[SDD] Server join failed:", err);
+      return "Unable to reach the server. Please check your connection and try again.";
+    }
   };
+
+  /** Build a User object from server data, merging with local if available */
+  function buildUserFromServer(
+    email: string,
+    serverData: Partial<User>,
+    localUser: User | null | undefined,
+  ): User {
+    const namePart = (serverData.name as string) || email.split("@")[0].replace(/[._-]/g, " ");
+    const name = namePart.split(" ").map((w: string) => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
+    const parts = namePart.split(" ").filter(Boolean);
+    const avatar = parts.length >= 2
+      ? (parts[0][0] + parts[1][0]).toUpperCase()
+      : namePart.slice(0, 2).toUpperCase();
+
+    return {
+      name: (serverData.name as string) || localUser?.name || name,
+      email,
+      title: (serverData.title as string) || localUser?.title || "",
+      institution: (serverData.institution as string) || localUser?.institution || email.split("@")[1],
+      avatar: localUser?.avatar || avatar,
+      avatarType: localUser?.avatarType,
+      avatarPhoto: localUser?.avatarPhoto,
+      role: (serverData.role as AppRole) || localUser?.role || "User",
+      accountStatus: (serverData.accountStatus as AccountStatus) || localUser?.accountStatus || "pending_approval",
+      invitedBy: (serverData.invitedBy as string) || localUser?.invitedBy,
+      invitedAt: (serverData.invitedAt as string) || localUser?.invitedAt,
+      approvedBy: (serverData.approvedBy as string) || localUser?.approvedBy,
+      approvedAt: (serverData.approvedAt as string) || localUser?.approvedAt,
+    };
+  }
 
   const updateUser = (updates: Partial<User>) => {
     if (!user) return;

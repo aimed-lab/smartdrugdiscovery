@@ -581,7 +581,8 @@ function EmailInviteForm({ onCreated }: { onCreated: () => void }) {
   const { user } = useAuth();
   const [role, setRole] = useState<AppRole>("Developer");
   const [recipientEmail, setRecipientEmail] = useState("");
-  const [sent, setSent] = useState<{ email: string; link: string } | null>(null);
+  const [sending, setSending] = useState(false);
+  const [sent, setSent] = useState<{ email: string; link: string; emailSent: boolean } | null>(null);
   const [error, setError] = useState("");
   const [copied, setCopied] = useState(false);
 
@@ -591,42 +592,74 @@ function EmailInviteForm({ onCreated }: { onCreated: () => void }) {
   const assignableRoles = ROLE_ORDER.filter((_, i) => i >= maxIdx);
   const remaining = getRemainingQuota(user.email, user.role);
 
-  function handleSendInvite() {
+  async function handleSendInvite() {
     setError("");
     setSent(null);
+    setSending(true);
     const email = recipientEmail.trim().toLowerCase();
     if (!email || !email.includes("@")) {
       setError("Please enter a valid email address.");
+      setSending(false);
       return;
     }
 
-    // Create invitation with autoApprove=true (email invitations skip queue)
-    const inv = createInvitation(user!.email, user!.role, role, email, true);
-    if ("error" in inv) { setError(inv.error); return; }
+    try {
+      // 1. Create invitation with autoApprove=true
+      const inv = createInvitation(user!.email, user!.role, role, email, true);
+      if ("error" in inv) { setError(inv.error); setSending(false); return; }
 
-    const link = buildInviteLink(inv.token);
+      const link = buildInviteLink(inv.token);
 
-    // Create placeholder "invited" user in database
-    fetch("/api/users", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        email,
-        name: email.split("@")[0].replace(/[._-]/g, " "),
-        role,
-        accountStatus: "invited",
-        invitedBy: user!.email,
-        invitedAt: new Date().toISOString(),
-      }),
-    }).catch(() => {});
+      // 2. Create placeholder "invited" user in database (await to ensure it's saved)
+      await fetch("/api/users", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email,
+          name: email.split("@")[0].replace(/[._-]/g, " "),
+          role,
+          accountStatus: "invited",
+          invitedBy: user!.email,
+          invitedAt: new Date().toISOString(),
+        }),
+      });
 
-    // Open the admin's email client with a pre-composed invitation email
-    const mailto = buildInviteMailto(email, link, role, user!.name);
-    window.open(mailto, "_blank");
+      // 3. Send email via server API (Resend)
+      let emailSent = false;
+      try {
+        const emailRes = await fetch("/api/send-invite", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            to: email,
+            inviteLink: link,
+            role,
+            inviterName: user!.name,
+          }),
+        });
+        const emailData = await emailRes.json();
+        emailSent = emailData.ok === true;
+        if (!emailSent) {
+          console.warn("[SDD] Email send failed:", emailData.error);
+          // Fall back to mailto
+          const mailto = buildInviteMailto(email, link, role, user!.name);
+          window.open(mailto, "_blank");
+        }
+      } catch {
+        // Email API not available — fall back to mailto
+        const mailto = buildInviteMailto(email, link, role, user!.name);
+        window.open(mailto, "_blank");
+      }
 
-    setSent({ email, link });
-    setRecipientEmail("");
-    onCreated();
+      setSent({ email, link, emailSent });
+      setRecipientEmail("");
+      onCreated();
+    } catch (err) {
+      setError("Failed to create invitation. Please try again.");
+      console.error("[SDD] Email invite error:", err);
+    } finally {
+      setSending(false);
+    }
   }
 
   function copyLink() {
@@ -666,11 +699,11 @@ function EmailInviteForm({ onCreated }: { onCreated: () => void }) {
       <div className="flex items-center gap-3">
         <button
           onClick={handleSendInvite}
-          disabled={remaining <= 0 || !recipientEmail.trim()}
+          disabled={remaining <= 0 || !recipientEmail.trim() || sending}
           className="inline-flex items-center gap-1.5 rounded-md px-4 py-1.5 text-sm font-medium bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
         >
           <Send className="h-3.5 w-3.5" />
-          Send Invitation
+          {sending ? "Sending..." : "Send Invitation"}
         </button>
         <span className="text-xs text-muted-foreground">
           {remaining} / {INVITE_QUOTAS[user.role]} remaining
@@ -684,12 +717,17 @@ function EmailInviteForm({ onCreated }: { onCreated: () => void }) {
           <div className="flex items-center gap-2">
             <Check className="h-4 w-4 text-green-600" />
             <span className="text-sm font-medium text-green-800 dark:text-green-300">
-              Invitation email opened for {sent.email}
+              {sent.emailSent
+                ? `Invitation email sent to ${sent.email}`
+                : `Invitation created for ${sent.email}`}
             </span>
           </div>
-          <p className="text-xs text-muted-foreground">
-            Your email client should have opened with a pre-composed message. Send it to complete the invitation.
-          </p>
+          {!sent.emailSent && (
+            <p className="text-xs text-amber-700 dark:text-amber-300">
+              Your email client was opened. Please send the email to complete the invitation.
+              To enable automatic email delivery, add RESEND_API_KEY to your Vercel environment variables.
+            </p>
+          )}
           <div className="flex items-center gap-2">
             <code className="flex-1 text-xs bg-white dark:bg-gray-900 rounded px-2 py-1 border truncate">
               {sent.link}
