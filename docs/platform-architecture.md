@@ -134,6 +134,7 @@ All internal API routes are Next.js Route Handlers located under `src/app/api/`.
 
 | Route | Method(s) | Purpose |
 |---|---|---|
+| `/api/assistant` | POST, GET | Platform AI assistant (multi-provider: Anthropic, OpenAI, Gemini, DeepSeek, Groq, Perplexity, Kimi, GLM). POST sends a question; GET is a health check. User must supply their own API key. |
 | `/api/feedback` | POST, GET | Submit feedback; list the feedback log |
 | `/api/admin/issues` | GET | Merged GitHub Issues + local feedback log for admin console |
 | `/api/admin/analyze` | POST | Claude-powered analysis of a file and issue; returns proposed code changes |
@@ -163,10 +164,12 @@ git revert HEAD       # revert latest commit (preferred over reset)
 
 | Variable | Used by | Purpose |
 |---|---|---|
-| `ANTHROPIC_API_KEY` | `/api/admin/analyze`, `/api/assistant` | Server-side Claude API calls |
+| `ANTHROPIC_API_KEY` | `/api/admin/analyze` | Server-side Claude API calls for admin AI analysis only |
 | `GITHUB_TOKEN` | `/api/feedback`, `/api/admin/*` | GitHub Issues API and Contents API |
 | `GITHUB_OWNER` | `/api/feedback`, `/api/admin/*` | GitHub repository owner (org or user) |
 | `GITHUB_REPO` | `/api/feedback`, `/api/admin/*` | GitHub repository name |
 | `FEEDBACK_READ_KEY` | `/api/feedback` (GET) | Simple bearer key to protect the feedback read endpoint |
 
 All variables are set in the Vercel project dashboard or in a local `.env.local` file during development.
+
+> **Note:** The `/api/assistant` route no longer uses a server-side API key. Users must configure their own API key in Settings → API Keys. The assistant supports 8 providers: Anthropic, OpenAI, Google Gemini, DeepSeek, Groq, Perplexity, Kimi (Moonshot), and GLM (Zhipu AI).

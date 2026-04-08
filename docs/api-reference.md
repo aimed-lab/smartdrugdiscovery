@@ -10,11 +10,94 @@ These are **internal** routes — they are not a public API and are subject to c
 
 There is no session-token authentication on these routes in the current version (authentication is client-side only). Security is enforced through:
 
-- **Vercel environment variable gating** — routes that require `GITHUB_TOKEN` or `ANTHROPIC_API_KEY` return `503` if those variables are not set.
+- **Vercel environment variable gating** — routes that require `GITHUB_TOKEN` or `ANTHROPIC_API_KEY` (admin analysis only) return `503` if those variables are not set.
 - **`FEEDBACK_READ_KEY`** — the `GET /api/feedback` endpoint optionally checks a bearer key passed as a query parameter.
 - **Deployment-level access control** — all routes are only reachable through the Vercel deployment, which can be restricted by Vercel Access policies.
 
 Server-side secrets (GitHub token, Anthropic key) are never returned in any response body.
+
+---
+
+## POST /api/assistant
+
+Send a question to the platform AI assistant. The request must include a user-supplied API key (no server-side key is used). Supports 8 providers: Anthropic, OpenAI, Google Gemini, DeepSeek, Groq, Perplexity, Kimi (Moonshot), and GLM (Zhipu AI).
+
+### Request body
+
+```json
+{
+  "question": "How do I install a plugin?",
+  "pageContext": "/plugins",
+  "role": "Developer",
+  "history": [
+    { "role": "user", "content": "previous question" },
+    { "role": "assistant", "content": "previous answer" }
+  ],
+  "apiKey": "sk-ant-...",
+  "provider": "anthropic"
+}
+```
+
+| Field | Required | Description |
+|---|---|---|
+| `question` | Yes | The user's question |
+| `pageContext` | No | Current page path (prepended to the question for context) |
+| `role` | No | User's platform role (informational, sent in system prompt) |
+| `history` | No | Last N chat messages for conversational context (max 6 kept) |
+| `apiKey` | Yes | User's API key for the chosen provider |
+| `provider` | No | One of: `anthropic`, `openai`, `google`, `deepseek`, `groq`, `perplexity`, `kimi`, `glm`. Defaults to `anthropic`. |
+
+### Response — 200 OK
+
+```json
+{
+  "answer": "To install a plugin, navigate to Tool Plugins...",
+  "model": "claude-sonnet-4-5",
+  "provider": "anthropic"
+}
+```
+
+If the API key is missing, the response is still 200 but `answer` contains setup instructions. If the provider API returns an error, `answer` contains a user-friendly diagnostic message.
+
+### Model fallback chains
+
+Each provider tries multiple models in order. If a model returns 404 (not available on the user's plan), the next model is tried.
+
+| Provider | Models (in fallback order) |
+|---|---|
+| `anthropic` | `claude-sonnet-4-5` → `claude-3-5-sonnet-20241022` → `claude-3-haiku-20240307` |
+| `openai` | `gpt-4o` → `gpt-4o-mini` |
+| `google` | `gemini-2.5-flash-preview-04-17` → `gemini-2.0-flash` → `gemini-2.0-flash-lite` |
+| `deepseek` | `deepseek-chat` → `deepseek-reasoner` |
+| `groq` | `llama-3.3-70b-versatile` → `llama-3.1-8b-instant` |
+| `perplexity` | `sonar-pro` → `sonar` |
+| `kimi` | `moonshot-v1-128k` → `moonshot-v1-32k` → `moonshot-v1-8k` |
+| `glm` | `glm-4-plus` → `glm-4-flash` → `glm-4-long` |
+
+---
+
+## GET /api/assistant
+
+Health check to verify a user's API key works with a given provider.
+
+### Query parameters
+
+| Parameter | Required | Description |
+|---|---|---|
+| `key` | Yes | The API key to verify |
+| `provider` | No | Provider to test (default: `anthropic`) |
+
+### Response — 200 OK
+
+```json
+{ "ok": true, "provider": "anthropic" }
+```
+
+or
+
+```json
+{ "ok": false, "status": 401, "provider": "anthropic" }
+```
 
 ---
 

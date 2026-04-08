@@ -62,7 +62,7 @@ Below the scientific domains, the sidebar lists platform-level features:
 
 - **Settings** — profile, API keys, privacy, and platform information
 - Your **role avatar** — colour-coded circle showing your initials and role (see [Roles and Permissions](roles-and-permissions.md))
-- **Platform version** — displayed in the footer (e.g., `v1.100`)
+- **Platform version** — displayed in the footer (e.g., `v1.134`)
 
 ---
 
@@ -91,16 +91,30 @@ ChEMBL is the most commonly used data plugin for drug discovery workflows. To in
 
 After installation, ChEMBL compound search, bioactivity queries, ADMET lookups, and mechanism-of-action data become available in your AI-assisted workflows.
 
-### 3. Connect Your Anthropic API Key
+### 3. Set Up Your API Key (Activates the AI Assistant)
 
-To use foundation models (Claude Sonnet, Opus, Haiku) with your own usage quota:
+The platform assistant and Foundation Models require your own API key. Multiple providers are supported — choose whichever fits your budget and preferences:
 
-1. Navigate to **Foundation Models** in the sidebar.
-2. Click **Add Personal API Key**.
-3. Paste your Anthropic API key (starts with `sk-ant-`).
-4. The platform validates the key and stores it encrypted in your session.
+| Provider | Models | Cost | Key format |
+|---|---|---|---|
+| **Anthropic** | Claude Sonnet 4.5, Opus 4 | Premium | `sk-ant-...` |
+| **OpenAI** | GPT-4o, GPT-4o mini | Premium | `sk-...` |
+| **Google Gemini** | Gemini 2.5 Flash, 2.0 Flash | Free tier available | `AIza...` |
+| **DeepSeek** | DeepSeek-V3, DeepSeek-R1 | Very cheap | `sk-...` |
+| **Groq** | Llama 3.3 70B | Free tier available | `gsk_...` |
+| **Perplexity** | Sonar Pro (search-augmented) | Mid-range | `pplx-...` |
+| **Kimi (Moonshot)** | Moonshot v1 128K/32K/8K | Cheap | `sk-...` |
+| **GLM (Zhipu AI)** | GLM-4 Plus, Flash | Cheap | `{id}.{secret}` |
 
-If you do not have a personal API key, the platform may use a shared organisation key if one has been configured by your Admin.
+To set up:
+
+1. Navigate to **Settings → API Keys**.
+2. Enter your key for one or more providers.
+3. Click **Save API Keys**.
+
+Once saved, the **Platform Assistant** (bottom-right chat bot) activates immediately. If you configure multiple providers, you can switch between them using the provider selector pills in the assistant widget.
+
+> **Budget tip:** DeepSeek, Groq, and Google Gemini offer free or very low-cost tiers suitable for testing.
 
 ### 4. Explore a Project
 
@@ -117,7 +131,9 @@ If you do not have a personal API key, the platform may use a shared organisatio
 
 ## Using the AI Assistant Widget
 
-A floating **AI Assistant** button appears in the bottom-right corner of every page. Click it to open a panel with two tabs:
+A floating **AI Assistant** button appears in the bottom-right corner of every page. Click it to open a panel with three tabs:
+
+> **Prerequisite:** The AI assistant requires an API key. If you haven't set one up yet, the Ask tab will show a setup prompt linking to Settings → API Keys. See [Step 3 above](#3-set-up-your-api-key-activates-the-ai-assistant).
 
 ### Ask Tab
 
@@ -127,6 +143,8 @@ Type any question about the platform or your current page. The assistant knows:
 - Your current role and available permissions
 - How platform features work
 - How to navigate to specific tools
+
+If you have multiple API keys configured, **provider selector pills** appear at the bottom of the chat, letting you switch between providers (e.g., Anthropic, DeepSeek, Gemini) mid-conversation.
 
 **Example questions:**
 - "How do I install a paid plugin with my own API key?"
