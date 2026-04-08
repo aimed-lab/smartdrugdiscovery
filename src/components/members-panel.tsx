@@ -8,13 +8,13 @@ import {
 import {
   type Invitation,
   createInvitation, getAllInvitations, getInvitationsByUser,
-  revokeInvitation, getRemainingQuota, buildInviteLink,
+  revokeInvitation, getRemainingQuota, buildInviteLink, buildInviteMailto,
   INVITE_QUOTAS, getPlatformSettings, savePlatformSettings,
   DEFAULT_MAX_ACTIVE_USERS,
 } from "@/lib/invitations";
 import {
-  UserCheck, UserX, Clock, Copy, Check, Link2, Plus,
-  Shield, Users, Mail, Trash2, RefreshCw, AlertTriangle,
+  UserCheck, UserX, Clock, Copy, Check, Link2, Plus, Send,
+  Shield, Users, Mail, Trash2, RefreshCw, AlertTriangle, Hash,
   ChevronDown, Settings2, MoreHorizontal, Ban, ShieldOff,
 } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -403,38 +403,46 @@ export function MembersPanel() {
         </Card>
       )}
 
-      {/* ── Invitations ──────────────────────────────────────────────── */}
+      {/* ── Invite by Email ────────────────────────────────────────── */}
       <Card>
         <CardHeader className="pb-3">
           <div className="flex items-center gap-2">
-            <Mail className="h-4 w-4 text-blue-500" />
-            <CardTitle className="text-base">Invitations</CardTitle>
+            <Send className="h-4 w-4 text-blue-500" />
+            <CardTitle className="text-base">Invite by Email</CardTitle>
           </div>
           <CardDescription>
-            {isAdmin ? "All invitations across the platform" : "Your sent invitations"}
+            Send a direct invitation — recipient is auto-approved, no code needed
           </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
-          {/* Create new invitation */}
-          <CreateInvitationForm onCreated={() => setRefreshKey(k => k + 1)} />
-
-          {/* Invitation list */}
-          {invitations.length === 0 ? (
-            <p className="text-sm text-muted-foreground py-2 text-center">No invitations yet</p>
-          ) : (
-            <div className="space-y-2">
-              {[...invitations].reverse().map(inv => (
-                <InvitationRow
-                  key={inv.id}
-                  invitation={inv}
-                  isAdmin={!!isAdmin}
-                  onRevoke={() => { revokeInvitation(inv.id); setRefreshKey(k => k + 1); }}
-                />
-              ))}
-            </div>
-          )}
+        <CardContent>
+          <EmailInviteForm onCreated={() => setRefreshKey(k => k + 1)} />
         </CardContent>
       </Card>
+
+      {/* ── Invite Codes ────────────────────────────────────────────── */}
+      <Card>
+        <CardHeader className="pb-3">
+          <div className="flex items-center gap-2">
+            <Hash className="h-4 w-4 text-purple-500" />
+            <CardTitle className="text-base">Invite Codes</CardTitle>
+          </div>
+          <CardDescription>
+            Generate shareable codes — recipients enter the code to request access (goes to approval queue)
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <CodeInviteForm onCreated={() => setRefreshKey(k => k + 1)} />
+        </CardContent>
+      </Card>
+
+      {/* ── Invitation History (compact, scrollable) ───────────────── */}
+      {invitations.length > 0 && (
+        <InvitationHistory
+          invitations={invitations}
+          isAdmin={!!isAdmin}
+          onRevoke={(id) => { revokeInvitation(id); setRefreshKey(k => k + 1); }}
+        />
+      )}
 
       {/* ── Platform Capacity (Owner only) ──────────────────────────── */}
       {user?.role === "Owner" && (
@@ -568,10 +576,142 @@ function RoleSelector({ currentRole, maxRole, onChange }: {
   );
 }
 
-function CreateInvitationForm({ onCreated }: { onCreated: () => void }) {
+/** ── Invite by Email: direct invitation, auto-approved, no code needed ─── */
+function EmailInviteForm({ onCreated }: { onCreated: () => void }) {
+  const { user } = useAuth();
+  const [role, setRole] = useState<AppRole>("Developer");
+  const [recipientEmail, setRecipientEmail] = useState("");
+  const [sent, setSent] = useState<{ email: string; link: string } | null>(null);
+  const [error, setError] = useState("");
+  const [copied, setCopied] = useState(false);
+
+  if (!user) return null;
+
+  const maxIdx = ROLE_ORDER.indexOf(user.role);
+  const assignableRoles = ROLE_ORDER.filter((_, i) => i >= maxIdx);
+  const remaining = getRemainingQuota(user.email, user.role);
+
+  function handleSendInvite() {
+    setError("");
+    setSent(null);
+    const email = recipientEmail.trim().toLowerCase();
+    if (!email || !email.includes("@")) {
+      setError("Please enter a valid email address.");
+      return;
+    }
+
+    // Create invitation with autoApprove=true (email invitations skip queue)
+    const inv = createInvitation(user!.email, user!.role, role, email, true);
+    if ("error" in inv) { setError(inv.error); return; }
+
+    const link = buildInviteLink(inv.token);
+
+    // Create placeholder "invited" user in database
+    fetch("/api/users", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        email,
+        name: email.split("@")[0].replace(/[._-]/g, " "),
+        role,
+        accountStatus: "invited",
+        invitedBy: user!.email,
+        invitedAt: new Date().toISOString(),
+      }),
+    }).catch(() => {});
+
+    // Open the admin's email client with a pre-composed invitation email
+    const mailto = buildInviteMailto(email, link, role, user!.name);
+    window.open(mailto, "_blank");
+
+    setSent({ email, link });
+    setRecipientEmail("");
+    onCreated();
+  }
+
+  function copyLink() {
+    if (!sent) return;
+    navigator.clipboard.writeText(sent.link);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  }
+
+  return (
+    <div className="space-y-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div>
+          <label className="text-xs font-medium text-muted-foreground">Recipient Email</label>
+          <input
+            type="email"
+            value={recipientEmail}
+            onChange={e => setRecipientEmail(e.target.value)}
+            placeholder="colleague@institution.edu"
+            className="mt-1 w-full rounded-md border border-input bg-background px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+          />
+        </div>
+        <div>
+          <label className="text-xs font-medium text-muted-foreground">Assign Role</label>
+          <select
+            value={role}
+            onChange={e => setRole(e.target.value as AppRole)}
+            className="mt-1 w-full rounded-md border border-input bg-background px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+          >
+            {assignableRoles.map(r => (
+              <option key={r} value={r}>{ROLE_META[r].label}</option>
+            ))}
+          </select>
+        </div>
+      </div>
+
+      <div className="flex items-center gap-3">
+        <button
+          onClick={handleSendInvite}
+          disabled={remaining <= 0 || !recipientEmail.trim()}
+          className="inline-flex items-center gap-1.5 rounded-md px-4 py-1.5 text-sm font-medium bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+        >
+          <Send className="h-3.5 w-3.5" />
+          Send Invitation
+        </button>
+        <span className="text-xs text-muted-foreground">
+          {remaining} / {INVITE_QUOTAS[user.role]} remaining
+        </span>
+      </div>
+
+      {error && <p className="text-xs text-destructive">{error}</p>}
+
+      {sent && (
+        <div className="rounded-lg bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 p-3 space-y-2">
+          <div className="flex items-center gap-2">
+            <Check className="h-4 w-4 text-green-600" />
+            <span className="text-sm font-medium text-green-800 dark:text-green-300">
+              Invitation email opened for {sent.email}
+            </span>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Your email client should have opened with a pre-composed message. Send it to complete the invitation.
+          </p>
+          <div className="flex items-center gap-2">
+            <code className="flex-1 text-xs bg-white dark:bg-gray-900 rounded px-2 py-1 border truncate">
+              {sent.link}
+            </code>
+            <button
+              onClick={copyLink}
+              className="inline-flex items-center gap-1 rounded-md px-2.5 py-1 text-xs font-medium border border-input bg-background hover:bg-accent transition-colors shrink-0"
+            >
+              {copied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
+              {copied ? "Copied!" : "Copy Link"}
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** ── Generate Invite Code: shareable code, goes to approval queue ────── */
+function CodeInviteForm({ onCreated }: { onCreated: () => void }) {
   const { user } = useAuth();
   const [role, setRole] = useState<AppRole>("User");
-  const [recipientHint, setRecipientHint] = useState("");
   const [autoApprove, setAutoApprove] = useState(false);
   const [result, setResult] = useState<{ token: string; link: string } | null>(null);
   const [error, setError] = useState("");
@@ -584,57 +724,24 @@ function CreateInvitationForm({ onCreated }: { onCreated: () => void }) {
   const canAutoApprove = hasRole(user.role, "Admin");
   const remaining = getRemainingQuota(user.email, user.role);
 
-  function handleCreate() {
+  function handleGenerate() {
     setError("");
     setResult(null);
-    const hint = recipientHint.trim();
-    const inv = createInvitation(user!.email, user!.role, role, hint || undefined, autoApprove);
-    if ("error" in inv) {
-      setError(inv.error);
-      return;
-    }
-    const link = buildInviteLink(inv.token);
-    setResult({ token: inv.token, link });
-
-    // If recipient looks like an email, create a placeholder "invited" user
-    // so they show up in the Members list immediately
-    if (hint && hint.includes("@")) {
-      const email = hint.toLowerCase();
-      fetch("/api/users", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          email,
-          name: hint.split("@")[0].replace(/[._-]/g, " "),
-          role,
-          accountStatus: "invited",
-          invitedBy: user!.email,
-          invitedAt: new Date().toISOString(),
-        }),
-      }).catch(() => {});
-    }
-
-    setRecipientHint("");
+    const inv = createInvitation(user!.email, user!.role, role, undefined, autoApprove);
+    if ("error" in inv) { setError(inv.error); return; }
+    setResult({ token: inv.token, link: buildInviteLink(inv.token) });
     onCreated();
   }
 
-  function copyLink() {
+  function copyCode() {
     if (!result) return;
-    navigator.clipboard.writeText(result.link);
+    navigator.clipboard.writeText(result.token);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   }
 
   return (
-    <div className="rounded-lg border p-4 space-y-3">
-      <div className="flex items-center gap-2 mb-1">
-        <Plus className="h-4 w-4 text-primary" />
-        <span className="text-sm font-medium">Create Invitation</span>
-        <span className="ml-auto text-xs text-muted-foreground">
-          {remaining} / {INVITE_QUOTAS[user.role]} remaining
-        </span>
-      </div>
-
+    <div className="space-y-3">
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div>
           <label className="text-xs font-medium text-muted-foreground">Assign Role</label>
@@ -648,83 +755,109 @@ function CreateInvitationForm({ onCreated }: { onCreated: () => void }) {
             ))}
           </select>
         </div>
-        <div>
-          <label className="text-xs font-medium text-muted-foreground">Recipient Email (recommended)</label>
-          <input
-            type="text"
-            value={recipientHint}
-            onChange={e => setRecipientHint(e.target.value)}
-            placeholder="user@institution.edu"
-            className="mt-1 w-full rounded-md border border-input bg-background px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
-          />
-        </div>
+        {canAutoApprove && (
+          <div className="flex items-end pb-1">
+            <label className="flex items-center gap-2 text-xs">
+              <input
+                type="checkbox"
+                checked={autoApprove}
+                onChange={e => setAutoApprove(e.target.checked)}
+                className="rounded border-gray-300"
+              />
+              <span>Auto-approve (skip approval queue)</span>
+            </label>
+          </div>
+        )}
       </div>
 
-      {canAutoApprove && (
-        <label className="flex items-center gap-2 text-xs">
-          <input
-            type="checkbox"
-            checked={autoApprove || (recipientHint.trim().includes("@"))}
-            onChange={e => setAutoApprove(e.target.checked)}
-            disabled={recipientHint.trim().includes("@")}
-            className="rounded border-gray-300"
-          />
-          <span>
-            {recipientHint.trim().includes("@")
-              ? "Auto-approved (email invitations skip the approval queue)"
-              : "Auto-approve (skip approval queue)"}
-          </span>
-        </label>
-      )}
-
-      {!canAutoApprove && recipientHint.trim().includes("@") && (
-        <p className="text-xs text-green-700 dark:text-green-400">
-          ✓ Email invitations are auto-approved — no admin review needed.
-        </p>
-      )}
-
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-3">
         <button
-          onClick={handleCreate}
+          onClick={handleGenerate}
           disabled={remaining <= 0}
           className="inline-flex items-center gap-1.5 rounded-md px-4 py-1.5 text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
         >
-          <Link2 className="h-3.5 w-3.5" />
-          Generate Invite Link
+          <Hash className="h-3.5 w-3.5" />
+          Generate Code
         </button>
+        <span className="text-xs text-muted-foreground">
+          {remaining} / {INVITE_QUOTAS[user.role]} remaining
+        </span>
       </div>
 
       {error && <p className="text-xs text-destructive">{error}</p>}
 
       {result && (
-        <div className="rounded-lg bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 p-3 space-y-2">
+        <div className="rounded-lg bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 p-3 space-y-2">
           <div className="flex items-center gap-2">
-            <Check className="h-4 w-4 text-green-600" />
-            <span className="text-sm font-medium text-green-800 dark:text-green-300">Invitation created!</span>
+            <Check className="h-4 w-4 text-purple-600" />
+            <span className="text-sm font-medium text-purple-800 dark:text-purple-300">Code generated!</span>
           </div>
-          <div className="rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 px-3 py-2">
-            <p className="text-xs font-medium text-amber-800 dark:text-amber-300">
-              📋 Copy the link below and send it to the recipient via email or message.
-            </p>
-          </div>
-          <div className="flex items-center gap-2">
-            <code className="flex-1 text-xs bg-white dark:bg-gray-900 rounded px-2 py-1 border truncate">
-              {result.link}
-            </code>
+          <div className="flex items-center gap-3">
+            <span className="font-mono text-2xl font-bold tracking-[0.2em] text-purple-700 dark:text-purple-300">
+              {result.token}
+            </span>
             <button
-              onClick={copyLink}
+              onClick={copyCode}
               className="inline-flex items-center gap-1 rounded-md px-2.5 py-1 text-xs font-medium border border-input bg-background hover:bg-accent transition-colors shrink-0"
             >
               {copied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
-              {copied ? "Copied!" : "Copy Link"}
+              {copied ? "Copied!" : "Copy Code"}
             </button>
           </div>
           <p className="text-xs text-muted-foreground">
-            Token: <span className="font-mono font-bold">{result.token}</span> &middot; Expires in 14 days
+            Share this code with anyone you want to invite. They&apos;ll enter it at sign-in.
+            {!autoApprove && " New users will need admin approval before accessing the platform."}
           </p>
         </div>
       )}
     </div>
+  );
+}
+
+/** ── Invitation History: shows recent 5, rest scrollable ──────────────── */
+function InvitationHistory({ invitations, isAdmin, onRevoke }: {
+  invitations: Invitation[];
+  isAdmin: boolean;
+  onRevoke: (id: string) => void;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const sorted = [...invitations].reverse();
+  const VISIBLE_COUNT = 5;
+  const visible = expanded ? sorted : sorted.slice(0, VISIBLE_COUNT);
+  const hasMore = sorted.length > VISIBLE_COUNT;
+
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Clock className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="text-base">Invitation History</CardTitle>
+            <span className="text-xs text-muted-foreground">({sorted.length})</span>
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent>
+        <div className={expanded && hasMore ? "max-h-80 overflow-y-auto space-y-2 pr-1" : "space-y-2"}>
+          {visible.map(inv => (
+            <InvitationRow
+              key={inv.id}
+              invitation={inv}
+              isAdmin={isAdmin}
+              onRevoke={() => onRevoke(inv.id)}
+            />
+          ))}
+        </div>
+        {hasMore && (
+          <button
+            onClick={() => setExpanded(!expanded)}
+            className="mt-3 w-full text-center text-xs font-medium text-muted-foreground hover:text-foreground transition-colors py-1.5 rounded-md hover:bg-accent"
+          >
+            {expanded ? "Show less" : `Show all ${sorted.length} invitations`}
+          </button>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 

@@ -12,6 +12,7 @@ export default function LoginPage() {
   const [inviteCode, setInviteCode] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [isEmailInvite, setIsEmailInvite] = useState(false);
 
   // Pre-fill invite code from URL ?invite=TOKEN and import invitation data
   let searchParams: ReturnType<typeof useSearchParams> | null = null;
@@ -21,6 +22,10 @@ export default function LoginPage() {
     const token = searchParams.get("invite");
     if (token) {
       setInviteCode(token);
+      // If this is an email invitation, hide the code field entirely
+      if (searchParams.get("type") === "email") {
+        setIsEmailInvite(true);
+      }
       // Import the invitation payload from URL params into this browser's localStorage
       // so validateToken() can find it (invitations are per-browser in localStorage)
       importInvitationFromParams(searchParams);
@@ -53,10 +58,11 @@ export default function LoginPage() {
 
         <Card>
           <CardHeader className="text-center">
-            <CardTitle>Sign In</CardTitle>
+            <CardTitle>{isEmailInvite ? "Accept Invitation" : "Sign In"}</CardTitle>
             <CardDescription>
-              Enter your email to access the platform.
-              New users need an invitation code.
+              {isEmailInvite
+                ? "You\u2019ve been invited to join the platform. Enter your email to confirm."
+                : "Enter your email to access the platform. New users need an invitation code."}
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -75,30 +81,39 @@ export default function LoginPage() {
                   autoFocus
                 />
               </div>
-              <div>
-                <label className="text-sm font-medium" htmlFor="invite-code">
-                  Invitation Code
-                </label>
-                <input
-                  id="invite-code"
-                  type="text"
-                  value={inviteCode}
-                  onChange={(e) => setInviteCode(e.target.value)}
-                  placeholder="e.g. ABCD1234"
-                  className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm tracking-wider uppercase focus:outline-none focus:ring-2 focus:ring-ring"
-                />
-                <p className="text-xs text-muted-foreground mt-1">
-                  Returning users can sign in without a code.
-                  Need an invitation? Ask a team member for an invite link.
-                </p>
-              </div>
+              {!isEmailInvite && (
+                <div>
+                  <label className="text-sm font-medium" htmlFor="invite-code">
+                    Invitation Code
+                  </label>
+                  <input
+                    id="invite-code"
+                    type="text"
+                    value={inviteCode}
+                    onChange={(e) => setInviteCode(e.target.value)}
+                    placeholder="e.g. ABCD1234"
+                    className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm tracking-wider uppercase focus:outline-none focus:ring-2 focus:ring-ring"
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Returning users can sign in without a code.
+                    Need an invitation? Ask a team member for an invite link.
+                  </p>
+                </div>
+              )}
+              {isEmailInvite && (
+                <div className="rounded-lg bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 p-3">
+                  <p className="text-xs text-blue-800 dark:text-blue-300">
+                    This is a direct invitation — no code needed. Just confirm your email above and click the button below.
+                  </p>
+                </div>
+              )}
               {error && <p className="text-sm text-destructive">{error}</p>}
               <button
                 type="submit"
                 disabled={loading}
                 className="w-full rounded-md px-4 py-2.5 text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-70 transition-colors"
               >
-                {loading ? "Signing in..." : "Sign In"}
+                {loading ? "Signing in..." : isEmailInvite ? "Accept & Join" : "Sign In"}
               </button>
             </form>
           </CardContent>

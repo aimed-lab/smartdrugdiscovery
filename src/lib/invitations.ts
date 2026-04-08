@@ -314,8 +314,39 @@ export function buildInviteLink(token: string): string {
     id: inv.id,
   });
   if (inv.recipientHint) params.set("rh", inv.recipientHint);
+  // Mark email-based invitations so the login page can skip the code field
+  if (inv.recipientHint && inv.recipientHint.includes("@")) {
+    params.set("type", "email");
+  }
 
   return `${base}/login?${params.toString()}`;
+}
+
+/**
+ * Build a mailto: URL that opens the admin's email client with a
+ * pre-composed invitation email. The recipient just needs to click
+ * the link in the email to join.
+ */
+export function buildInviteMailto(
+  recipientEmail: string,
+  inviteLink: string,
+  assignedRole: AppRole,
+  inviterName?: string,
+): string {
+  const roleName = assignedRole.charAt(0).toUpperCase() + assignedRole.slice(1);
+  const from = inviterName || "Your administrator";
+  const subject = encodeURIComponent(
+    `You're invited to join SmartDrugDiscovery`
+  );
+  const body = encodeURIComponent(
+    `Hi,\n\n` +
+    `${from} has invited you to join the SmartDrugDiscovery platform as a ${roleName}.\n\n` +
+    `Click the link below to accept your invitation:\n` +
+    `${inviteLink}\n\n` +
+    `This invitation expires in 14 days.\n\n` +
+    `— SmartDrugDiscovery Team`
+  );
+  return `mailto:${recipientEmail}?subject=${subject}&body=${body}`;
 }
 
 /**

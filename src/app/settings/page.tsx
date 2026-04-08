@@ -353,13 +353,13 @@ export default function SettingsPage() {
           <TabsTrigger value="preferences">Preferences</TabsTrigger>
           <TabsTrigger value="data">Data</TabsTrigger>
           <TabsTrigger value="privacy">Privacy & Legal</TabsTrigger>
-          <TabsTrigger value="about">About</TabsTrigger>
           {hasRole(user?.role, "Admin") && (
-            <TabsTrigger value="members">Members</TabsTrigger>
+            <TabsTrigger value="members">Member Management</TabsTrigger>
           )}
           {hasRole(user?.role, "Admin") && (
             <TabsTrigger value="access-control">Access Control</TabsTrigger>
           )}
+          <TabsTrigger value="about">About</TabsTrigger>
         </TabsList>
 
         {/* Profile Tab */}
