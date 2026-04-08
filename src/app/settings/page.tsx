@@ -8,12 +8,13 @@ import { Separator } from "@/components/ui/separator";
 import { useAuth } from "@/lib/auth-context";
 import { PLATFORM_CONFIG } from "@/lib/platform-config";
 import { RoleAvatar } from "@/components/role-avatar";
-import { ROLE_META, type AppRole } from "@/lib/roles";
+import { ROLE_META, type AppRole, hasRole } from "@/lib/roles";
 import {
   MODULE_GROUPS, MODULE_LABELS, CONFIGURABLE_ROLES,
   type AccessLevel, type ModuleKey, type ModuleAccessConfig,
   loadModuleAccess, saveModuleAccess,
 } from "@/lib/module-access";
+import { MembersPanel } from "@/components/members-panel";
 
 export default function SettingsPage() {
   const { user, updateUser, initiateOwnerTransfer, cancelOwnerTransfer } = useAuth();
@@ -298,7 +299,10 @@ export default function SettingsPage() {
           <TabsTrigger value="data">Data</TabsTrigger>
           <TabsTrigger value="privacy">Privacy & Legal</TabsTrigger>
           <TabsTrigger value="about">About</TabsTrigger>
-          {(user?.role === "Owner" || user?.role === "Admin") && (
+          {hasRole(user?.role, "Admin") && (
+            <TabsTrigger value="members">Members</TabsTrigger>
+          )}
+          {hasRole(user?.role, "Admin") && (
             <TabsTrigger value="access-control">Access Control</TabsTrigger>
           )}
         </TabsList>
@@ -1155,6 +1159,11 @@ export default function SettingsPage() {
               </p>
             </CardContent>
           </Card>
+        </TabsContent>
+
+        {/* ── MEMBERS TAB ──────────────────────────────────────────────── */}
+        <TabsContent value="members">
+          <MembersPanel />
         </TabsContent>
 
         {/* ── ACCESS CONTROL TAB ───────────────────────────────────────── */}

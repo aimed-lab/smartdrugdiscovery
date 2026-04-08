@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useSearchParams } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
@@ -9,6 +10,14 @@ export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [inviteCode, setInviteCode] = useState("");
   const [error, setError] = useState("");
+
+  // Pre-fill invite code from URL ?invite=TOKEN
+  let searchParams: ReturnType<typeof useSearchParams> | null = null;
+  try { searchParams = useSearchParams(); } catch { /* noop — rendered outside Suspense */ }
+  useEffect(() => {
+    const token = searchParams?.get("invite");
+    if (token) setInviteCode(token);
+  }, [searchParams]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -26,14 +35,15 @@ export default function LoginPage() {
             <span className="text-primary-foreground text-2xl font-bold">SD</span>
           </div>
           <h1 className="text-3xl font-bold">SmartDrugDiscovery</h1>
-          <p className="text-muted-foreground mt-1 text-sm uppercase tracking-widest">faster · cheaper · personalized</p>
+          <p className="text-muted-foreground mt-1 text-sm uppercase tracking-widest">faster &middot; cheaper &middot; personalized</p>
         </div>
 
         <Card>
           <CardHeader className="text-center">
             <CardTitle>Sign In</CardTitle>
             <CardDescription>
-              Enter your email and invite code to access the platform
+              Enter your email to access the platform.
+              New users need an invitation code.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -47,23 +57,27 @@ export default function LoginPage() {
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="jakechen@gmail.com"
+                  placeholder="you@institution.edu"
                   className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
                   autoFocus
                 />
               </div>
               <div>
                 <label className="text-sm font-medium" htmlFor="invite-code">
-                  Invite Code
+                  Invitation Code
                 </label>
                 <input
                   id="invite-code"
                   type="text"
                   value={inviteCode}
                   onChange={(e) => setInviteCode(e.target.value)}
-                  placeholder="Enter your invite code"
-                  className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                  placeholder="e.g. ABCD1234"
+                  className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm tracking-wider uppercase focus:outline-none focus:ring-2 focus:ring-ring"
                 />
+                <p className="text-xs text-muted-foreground mt-1">
+                  Returning users can sign in without a code.
+                  Need an invitation? Ask a team member for an invite link.
+                </p>
               </div>
               {error && <p className="text-sm text-destructive">{error}</p>}
               <button

@@ -2,35 +2,44 @@
 
 import { createContext, useContext, useState, ReactNode, useEffect } from "react";
 import { type AppRole } from "@/lib/roles";
+import { validateToken, redeemInvitation } from "@/lib/invitations";
+
+// ── User type ────────────────────────────────────────────────────────────────
+
+export type AccountStatus = "active" | "pending_approval" | "rejected" | "suspended";
 
 export interface User {
   name: string;
   email: string;
   title: string;
   institution: string;
-  /** Initials string (e.g. "JC"), single emoji (e.g. "🧬"), or ignored when avatarType="photo" */
   avatar: string;
-  /** How to render the avatar — defaults to "initials" */
   avatarType?: "initials" | "emoji" | "photo";
-  /** Base64 data URL for photo avatar (set when avatarType="photo") */
   avatarPhoto?: string;
   role: AppRole;
 
-  // ── Researcher / social profiles ──────────────────────────────────────────
-  orgEmail?: string;          // institutional / org email
-  orgEmailVerified?: boolean; // true once OTP flow completed
-  linkedin?: string;          // linkedin.com/in/... URL
-  twitter?: string;           // @handle
-  orcid?: string;             // 0000-0000-0000-0000
+  // ── Account status (invite + approval gate) ────────────────────────────
+  accountStatus?: AccountStatus;  // defaults to "active" for legacy/seed users
+  invitedBy?: string;             // email of inviter
+  invitedAt?: string;             // ISO timestamp when invite was redeemed
+  approvedBy?: string;            // email of admin who approved
+  approvedAt?: string;            // ISO timestamp of approval
 
-  // ── Ownership transfer (24-hr cooling-off period) ─────────────────────────
-  // An Owner cannot downgrade their own role without completing a transfer.
-  // During the 24-hr window the transfer can be cancelled; afterwards it auto-completes.
+  // ── Researcher / social profiles ──────────────────────────────────────
+  orgEmail?: string;
+  orgEmailVerified?: boolean;
+  linkedin?: string;
+  twitter?: string;
+  orcid?: string;
+
+  // ── Ownership transfer (24-hr cooling-off period) ─────────────────────
   pendingOwnerTransfer?: {
-    toEmail: string;      // recipient email
-    initiatedAt: string;  // ISO timestamp when initiated
+    toEmail: string;
+    initiatedAt: string;
   };
 }
+
+// ── Context type ─────────────────────────────────────────────────────────────
 
 interface AuthContextType {
   isAuthenticated: boolean;
@@ -39,19 +48,29 @@ interface AuthContextType {
   login: (email: string, inviteCode: string) => string | null;
   logout: () => void;
   updateUser: (updates: Partial<User>) => void;
-  /** Start the 24-hr ownership transfer to `toEmail`. */
   initiateOwnerTransfer: (toEmail: string) => void;
-  /** Cancel a pending ownership transfer before the 24-hr window expires. */
   cancelOwnerTransfer: () => void;
+  /** Admin: get all users in the database */
+  getAllUsers: () => Record<string, User>;
+  /** Admin: change a user's role */
+  updateUserRole: (email: string, newRole: AppRole) => void;
+  /** Admin: approve a pending user */
+  approveUser: (email: string) => void;
+  /** Admin: reject a pending user */
+  rejectUser: (email: string) => void;
+  /** Admin: suspend an active user */
+  suspendUser: (email: string) => void;
+  /** Admin: reactivate a suspended/rejected user */
+  reactivateUser: (email: string) => void;
+  /** Force refresh user from DB (e.g. after approval check) */
+  refreshUser: () => void;
 }
 
-const VALID_INVITE_CODES = ["SPARC2026"];
+// ── Persistent user database ─────────────────────────────────────────────────
 
-// Persistent user database — keyed by email
 const USER_DB_KEY = "sdd-user-db";
 const AUTH_KEY    = "sdd-auth-user";
 
-// Seed database with known users
 const SEED_USERS: Record<string, User> = {
   "jakechen@gmail.com": {
     name: "Dr. Jake Chen",
@@ -60,6 +79,7 @@ const SEED_USERS: Record<string, User> = {
     institution: "UAB Systems Pharmacology AI Research Center",
     avatar: "JC",
     role: "Owner",
+    accountStatus: "active",
   },
 };
 
@@ -77,9 +97,17 @@ function saveUserToDB(user: User) {
   localStorage.setItem(USER_DB_KEY, JSON.stringify(db));
 }
 
-function lookupOrCreateUser(email: string): User {
+function lookupOrCreateUser(email: string, overrides?: Partial<User>): User {
   const db = getUserDB();
-  if (db[email]) return db[email];
+  if (db[email]) {
+    // If user exists, merge any new overrides (e.g. role from invitation)
+    if (overrides) {
+      const updated = { ...db[email], ...overrides };
+      saveUserToDB(updated);
+      return updated;
+    }
+    return db[email];
+  }
 
   const namePart = email.split("@")[0].replace(/[._-]/g, " ");
   const name = namePart
@@ -99,10 +127,14 @@ function lookupOrCreateUser(email: string): User {
     institution: email.split("@")[1],
     avatar,
     role: "User",
+    accountStatus: "pending_approval",
+    ...overrides,
   };
   saveUserToDB(newUser);
   return newUser;
 }
+
+// ── Provider ─────────────────────────────────────────────────────────────────
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
@@ -115,6 +147,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const storedEmail = localStorage.getItem(AUTH_KEY);
     if (storedEmail) {
       const u = lookupOrCreateUser(storedEmail);
+      // Ensure legacy users without accountStatus are treated as active
+      if (!u.accountStatus) {
+        u.accountStatus = "active";
+        saveUserToDB(u);
+      }
       setUser(u);
       setIsAuthenticated(true);
     }
@@ -123,12 +160,51 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = (email: string, inviteCode: string): string | null => {
     const trimmedEmail = email.trim().toLowerCase();
-    const trimmedCode  = inviteCode.trim().toUpperCase();
+    const trimmedCode  = inviteCode.trim();
+
     if (!trimmedEmail || !trimmedEmail.includes("@"))
       return "Please enter a valid email address.";
-    if (!VALID_INVITE_CODES.includes(trimmedCode))
-      return "Invalid invite code. Please check and try again.";
-    const u = lookupOrCreateUser(trimmedEmail);
+
+    // Check if user already exists (returning user)
+    const db = getUserDB();
+    if (db[trimmedEmail]) {
+      const existingUser = db[trimmedEmail];
+      // Returning users don't need invite code (they already have an account)
+      // But if they're rejected/suspended, block them
+      if (existingUser.accountStatus === "rejected")
+        return "Your access request was not approved. Contact your administrator.";
+      if (existingUser.accountStatus === "suspended")
+        return "Your account has been suspended. Contact your administrator.";
+
+      setUser(existingUser);
+      setIsAuthenticated(true);
+      localStorage.setItem(AUTH_KEY, trimmedEmail);
+      return null;
+    }
+
+    // New user — must have a valid invitation token
+    if (!trimmedCode)
+      return "Invitation code is required for new accounts.";
+
+    const invitation = validateToken(trimmedCode);
+    if (!invitation)
+      return "Invalid or expired invitation code. Please check and try again.";
+
+    // Redeem the invitation
+    const redeemed = redeemInvitation(trimmedCode, trimmedEmail);
+    if (!redeemed)
+      return "This invitation has already been used.";
+
+    // Create user with the invitation's assigned role
+    const accountStatus: AccountStatus = redeemed.autoApprove ? "active" : "pending_approval";
+    const u = lookupOrCreateUser(trimmedEmail, {
+      role: redeemed.assignedRole,
+      accountStatus,
+      invitedBy: redeemed.createdBy,
+      invitedAt: new Date().toISOString(),
+      ...(redeemed.autoApprove ? { approvedBy: "auto", approvedAt: new Date().toISOString() } : {}),
+    });
+
     setUser(u);
     setIsAuthenticated(true);
     localStorage.setItem(AUTH_KEY, trimmedEmail);
@@ -155,9 +231,69 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const cancelOwnerTransfer = () => {
     if (!user) return;
     const { pendingOwnerTransfer: _, ...rest } = user;
-    const updated = { ...rest };
+    const updated = { ...rest } as User;
     setUser(updated);
     saveUserToDB(updated);
+  };
+
+  const getAllUsers = (): Record<string, User> => getUserDB();
+
+  const updateUserRole = (email: string, newRole: AppRole) => {
+    const db = getUserDB();
+    if (!db[email]) return;
+    db[email] = { ...db[email], role: newRole };
+    localStorage.setItem(USER_DB_KEY, JSON.stringify(db));
+    // If it's the current user, update state too
+    if (user && user.email === email) setUser({ ...user, role: newRole });
+  };
+
+  const approveUser = (targetEmail: string) => {
+    const db = getUserDB();
+    if (!db[targetEmail]) return;
+    const now = new Date().toISOString();
+    db[targetEmail] = {
+      ...db[targetEmail],
+      accountStatus: "active",
+      approvedBy: user?.email ?? "unknown",
+      approvedAt: now,
+    };
+    localStorage.setItem(USER_DB_KEY, JSON.stringify(db));
+    if (user && user.email === targetEmail) {
+      setUser({ ...user, accountStatus: "active", approvedBy: user.email, approvedAt: now });
+    }
+  };
+
+  const rejectUser = (targetEmail: string) => {
+    const db = getUserDB();
+    if (!db[targetEmail]) return;
+    db[targetEmail] = { ...db[targetEmail], accountStatus: "rejected" };
+    localStorage.setItem(USER_DB_KEY, JSON.stringify(db));
+  };
+
+  const suspendUser = (targetEmail: string) => {
+    const db = getUserDB();
+    if (!db[targetEmail]) return;
+    db[targetEmail] = { ...db[targetEmail], accountStatus: "suspended" };
+    localStorage.setItem(USER_DB_KEY, JSON.stringify(db));
+  };
+
+  const reactivateUser = (targetEmail: string) => {
+    const db = getUserDB();
+    if (!db[targetEmail]) return;
+    db[targetEmail] = {
+      ...db[targetEmail],
+      accountStatus: "active",
+      approvedBy: user?.email ?? "unknown",
+      approvedAt: new Date().toISOString(),
+    };
+    localStorage.setItem(USER_DB_KEY, JSON.stringify(db));
+  };
+
+  const refreshUser = () => {
+    if (!user) return;
+    const db = getUserDB();
+    const fresh = db[user.email];
+    if (fresh) setUser(fresh);
   };
 
   const logout = () => {
@@ -167,7 +303,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ isAuthenticated, loading, user, login, logout, updateUser, initiateOwnerTransfer, cancelOwnerTransfer }}>
+    <AuthContext.Provider
+      value={{
+        isAuthenticated, loading, user, login, logout, updateUser,
+        initiateOwnerTransfer, cancelOwnerTransfer,
+        getAllUsers, updateUserRole, approveUser, rejectUser,
+        suspendUser, reactivateUser, refreshUser,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );

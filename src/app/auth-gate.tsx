@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import Link from "next/link";
 import { AuthProvider, useAuth } from "@/lib/auth-context";
 import LoginPage from "./login/page";
+import { AccountStatusGate } from "@/components/pending-approval-screen";
 import { cn } from "@/lib/utils";
 import {
   Dna, FlaskConical, Stethoscope, ShieldCheck,
@@ -39,48 +40,50 @@ function AuthSwitch({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <div className="flex h-screen">
-      {/* Mobile backdrop */}
-      {sidebarOpen && (
-        <div
-          className="fixed inset-0 z-30 bg-black/40 md:hidden"
-          onClick={() => setSidebarOpen(false)}
+    <AccountStatusGate>
+      <div className="flex h-screen">
+        {/* Mobile backdrop */}
+        {sidebarOpen && (
+          <div
+            className="fixed inset-0 z-30 bg-black/40 md:hidden"
+            onClick={() => setSidebarOpen(false)}
+          />
+        )}
+
+        <Sidebar
+          user={user}
+          onLogout={logout}
+          mobileOpen={sidebarOpen}
+          onClose={() => setSidebarOpen(false)}
         />
-      )}
 
-      <Sidebar
-        user={user}
-        onLogout={logout}
-        mobileOpen={sidebarOpen}
-        onClose={() => setSidebarOpen(false)}
-      />
-
-      <div className="flex flex-1 flex-col overflow-hidden">
-        <FeedbackWidget user={user} />
-        {/* Mobile top bar */}
-        <header className="flex items-center gap-3 border-b bg-card px-4 py-3 md:hidden">
-          <button
-            onClick={() => setSidebarOpen(true)}
-            className="rounded-md p-1.5 text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
-            aria-label="Open menu"
-          >
-            <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <line x1="3" y1="6" x2="21" y2="6" />
-              <line x1="3" y1="12" x2="21" y2="12" />
-              <line x1="3" y1="18" x2="21" y2="18" />
-            </svg>
-          </button>
-          <div className="flex items-center gap-2">
-            <div className="h-7 w-7 rounded-lg bg-primary flex items-center justify-center">
-              <span className="text-primary-foreground text-xs font-bold">SD</span>
+        <div className="flex flex-1 flex-col overflow-hidden">
+          <FeedbackWidget user={user} />
+          {/* Mobile top bar */}
+          <header className="flex items-center gap-3 border-b bg-card px-4 py-3 md:hidden">
+            <button
+              onClick={() => setSidebarOpen(true)}
+              className="rounded-md p-1.5 text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
+              aria-label="Open menu"
+            >
+              <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="3" y1="6" x2="21" y2="6" />
+                <line x1="3" y1="12" x2="21" y2="12" />
+                <line x1="3" y1="18" x2="21" y2="18" />
+              </svg>
+            </button>
+            <div className="flex items-center gap-2">
+              <div className="h-7 w-7 rounded-lg bg-primary flex items-center justify-center">
+                <span className="text-primary-foreground text-xs font-bold">SD</span>
+              </div>
+              <span className="font-bold text-sm">SmartDrugDiscovery</span>
             </div>
-            <span className="font-bold text-sm">SmartDrugDiscovery</span>
-          </div>
-        </header>
+          </header>
 
-        <main className="flex-1 overflow-auto">{children}</main>
+          <main className="flex-1 overflow-auto">{children}</main>
+        </div>
       </div>
-    </div>
+    </AccountStatusGate>
   );
 }
 

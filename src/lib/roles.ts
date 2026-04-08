@@ -50,6 +50,12 @@ export const ROLE_PERMISSIONS = {
   updateTicketStatus:   "TechSupport",
   assignTicket:         "TechSupport",
   deleteTicket:         "Admin",
+
+  // Invitation & member management
+  inviteUsers:          "User",       // everyone can invite (quotas enforced separately)
+  manageMembers:        "Admin",      // view all users, change roles, approve/reject
+  revokeAnyInvitation:  "Admin",      // revoke anyone's invitations
+  setCapacityLimit:     "Owner",      // adjust maxActiveUsers
 } as const satisfies Record<string, AppRole>;
 
 export type Permission = keyof typeof ROLE_PERMISSIONS;
